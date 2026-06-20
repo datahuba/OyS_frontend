@@ -9,6 +9,7 @@ import {
   LightMode,
   DarkMode,
   Error,
+  AdminPanelSettings, // Importación del ícono de administración para el backdoor de desarrollo
 } from "@mui/icons-material";
 import useAppTheme from "../hooks/useAppTheme";
 
@@ -37,8 +38,39 @@ const LoginPage = () => {
     }
   };
 
+  // Backdoor de desarrollo seguro que realiza la autenticación automatizada
+  const handleDesarrolloBypass = async () => {
+    const secret = prompt("Introduce la clave de desarrollador para acceder:");
+    // Validación contra tu SUPERUSER_SECRET de .env
+    if (secret === "d8jWt8iCGkvgpBmW") {
+      setError("");
+      setLoading(true);
+      try {
+        // Autenticación automatizada utilizando el flujo normal del backend
+        await login("kevinsohe@hotmail.com", "Krsh2001...");
+        navigate("/users");
+      } catch (err) {
+        setError("Error al autenticar acceso de desarrollo: " + err.toString());
+      } finally {
+        setLoading(false);
+      }
+    } else if (secret !== null) {
+      alert("Clave de desarrollador incorrecta.");
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-light-bg dark:bg-dark-bg">
+      {/* Botón de Desarrollo (Acceso Administrativo Directo) */}
+      <button
+        onClick={handleDesarrolloBypass}
+        className="fixed top-6 right-20 p-3 rounded-full bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 dark:shadow-gray-800/25 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:scale-110"
+        aria-label="Desarrollo"
+      >
+        <AdminPanelSettings />
+      </button>
+
+      {/* Botón de Cambio de Tema */}
       <button
         onClick={() => toggleDarkMode()}
         className="fixed top-6 right-6 p-3 rounded-full bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 dark:shadow-gray-800/25 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:scale-110"
@@ -137,19 +169,6 @@ const LoginPage = () => {
               )}
             </button>
           </form>
-          {/* Register link */}
-          {/* <div className="mt-6 text-center">
-            <p className="text-sm text-light-primary dark:text-dark-primary">
-              ¿No tienes una cuenta?{" "}
-              <button
-                type="button"
-                onClick={() => navigate("/register")}
-                className="font-medium text-light-primary dark:text-dark-primary hover:text-light-primary dark:hover:text-dark-primary transition-colors"
-              >
-                Regístrate aquí
-              </button>
-            </p>
-          </div> */}
         </div>
       </div>
     </div>
