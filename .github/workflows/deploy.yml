@@ -1,0 +1,38 @@
+name: Deploy Frontend to VPS
+
+on:
+  push:
+    branches:
+      - develop_kevin # Se activa únicamente cuando subes cambios a esta rama
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Desplegar en VPS vía SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          # Puedes usar tu clave SSH privada (recomendado) o tu contraseña de root del VPS
+          password: ${{ secrets.SSH_PASSWORD }} 
+          port: 22
+          script: |
+            echo "Conectado al VPS. Iniciando despliegue de OyS_frontend..."
+            cd /root/oys-deploy/OyS_frontend
+            
+            # Limpiar cualquier cambio local temporal que impida el pull
+            git reset --hard HEAD
+            
+            # Descargar los cambios de GitHub al VPS
+            git pull origin develop_kevin
+            
+            # Navegar a la raíz del orquestador y reconstruir el contenedor
+            cd /root/oys-deploy
+            docker compose up -d --build oys-frontend
+            
+            echo "Despliegue de OyS_frontend completado de forma exitosa."
