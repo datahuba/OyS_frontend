@@ -5,9 +5,11 @@ COPY package*.json ./
 # Resolver la desincronización del lockfile de forma limpia en producción
 RUN npm install --legacy-peer-deps
 COPY . .
-# Argumento de construcción requerido para que React sepa a dónde enviar peticiones Axios en producción
+# Argumentos de construcción requeridos para enlazar con la API de producción
 ARG REACT_APP_API_URL
 ENV REACT_APP_API_URL=$REACT_APP_API_URL
+ARG REACT_APP_API_URL2
+ENV REACT_APP_API_URL2=$REACT_APP_API_URL2
 RUN npm run build
 
 # Etapa 2: Servir con Nginx Alpine de producción
