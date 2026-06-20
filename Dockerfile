@@ -2,7 +2,8 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+# Resolver la desincronización del lockfile de forma limpia en producción
+RUN npm install --legacy-peer-deps
 COPY . .
 # Argumento de construcción requerido para que React sepa a dónde enviar peticiones Axios en producción
 ARG REACT_APP_API_URL
