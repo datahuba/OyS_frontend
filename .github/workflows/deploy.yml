@@ -18,9 +18,10 @@ jobs:
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
-          # Puedes usar tu clave SSH privada (recomendado) o tu contraseña de root del VPS
           password: ${{ secrets.SSH_PASSWORD }} 
           port: 22
+          # Incrementar el timeout de conexión a 30 minutos para prevenir cortes en servidores bajo carga
+          timeout: 30m
           script: |
             echo "Conectado al VPS. Iniciando despliegue de OyS_frontend..."
             cd /root/oys-deploy/OyS_frontend
