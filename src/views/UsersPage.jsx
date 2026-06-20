@@ -171,10 +171,11 @@ const UsersPage = () => {
     }
   };
 
+  // Parche defensivo de tolerancia a nulos unificado para producción
   const filteredUsers = users.filter(
     (user) =>
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase())
+      (user.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
+      (user.email || '').toLowerCase().includes((searchTerm || '').toLowerCase())
   );
 
   const formatDate = (dateString) => {
@@ -289,7 +290,7 @@ const UsersPage = () => {
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {loading ? (
-                <UserSkeleton type="table" count={5} /> // Use UserSkeleton for table
+                <UserSkeleton type="table" count={5} />
               ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td
@@ -367,7 +368,7 @@ const UsersPage = () => {
         {/* Users Cards (Mobile) */}
         <div className="md:hidden space-y-4">
           {loading ? (
-            <UserSkeleton type="card" count={3} /> // Use UserSkeleton for cards
+            <UserSkeleton type="card" count={3} />
           ) : filteredUsers.length === 0 ? (
             <div className="text-center py-12 text-light-primary dark:text-dark-primary">
               No se encontraron usuarios
