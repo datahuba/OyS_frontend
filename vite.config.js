@@ -14,18 +14,7 @@ export default defineConfig(({ mode }) => {
       host: true
     },
     build: {
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (id.includes('node_modules')) {
-              if (id.includes('@mui')) return 'vendor-mui';
-              if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) return 'vendor-react';
-              if (id.includes('axios')) return 'vendor-axios';
-              return 'vendor-core';
-            }
-          }
-        }
-      },
+      // Se eleva el límite de advertencia para evitar spam en consola de CI/CD
       chunkSizeWarningLimit: 1500
     }
   };
