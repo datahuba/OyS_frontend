@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import {
   Routes,
   Route,
@@ -19,11 +19,12 @@ import {
 import { useAuth } from "./context/AuthContext";
 
 import ProtectedRoute from "./components/ProtectedRoute";
-import Layout from "./components/Layout";
-import ChatView from "./views/ChatView";
-import ProjectInfoView from "./views/ProjectInfoView";
 import { apiClient, isTokenExpired } from "./api/axios";
 import { chatService } from "./api/chat-api";
+
+// Carga diferida de las vistas internas
+const ChatView = lazy(() => import("./views/ChatView.jsx"));
+const ProjectInfoView = lazy(() => import("./views/ProjectInfoView.jsx"));
 
 function AppLogic({ darkMode, toggleDarkMode }) {
   const navigate = useNavigate();
@@ -37,7 +38,6 @@ function AppLogic({ darkMode, toggleDarkMode }) {
     React.useState(false);
   const hasInitialized = React.useRef(false);
 
-  // Verificar token en el montaje del componente
   React.useEffect(() => {
     const checkToken = () => {
       try {
@@ -58,7 +58,6 @@ function AppLogic({ darkMode, toggleDarkMode }) {
     checkToken();
   }, [location.pathname, logout, navigate]);
 
-  // Escuchar evento de token expirado
   React.useEffect(() => {
     const handleTokenExpired = () => {
       if (location.pathname === "/" || location.pathname === "/login") {
@@ -100,7 +99,6 @@ function AppLogic({ darkMode, toggleDarkMode }) {
       return;
     }
 
-    // Unificación de lógica: tanto 'admin' como 'superadmin' se redirigen al panel de gestión de usuarios
     if (user.role === "admin" || user.role === "superadmin") {
       navigate("/users", { replace: true });
       setLoading(false);
@@ -164,17 +162,9 @@ function AppLogic({ darkMode, toggleDarkMode }) {
     );
   };
 
-  // Bloqueo de renderizado para roles administrativos durante redirección
   if (loading || (user && (user.role === "admin" || user.role === "superadmin"))) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-        }}
-      >
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
         <CircularProgress />
       </Box>
     );
@@ -185,46 +175,25 @@ function AppLogic({ darkMode, toggleDarkMode }) {
       <Dialog open={showTokenExpiredDialog} onClose={handleTokenExpiredClose}>
         <DialogTitle>Sesión Expirada</DialogTitle>
         <DialogContent>
-          <Typography>
-            Su sesión ha expirado. Por favor inicie sesión nuevamente para continuar.
-          </Typography>
+          <Typography>Su sesión ha expirado. Por favor inicie sesión nuevamente para continuar.</Typography>
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={handleTokenExpiredClose}
-            color="primary"
-            variant="contained"
-          >
+          <Button onClick={handleTokenExpiredClose} color="primary" variant="contained">
             Ir al Login
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Routes>
-        {/* Rutas de usuarios comunes */}
-        <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
-          <Route
-            index
-            element={
-              allChats.length > 0 && user.role === "user" ? (
-                <Navigate to={`/chat/${allChats[0]._id}`} replace />
-              ) : null
-            }
-          />
-          <Route
-            path="chat/:chatId"
-            element={
-              <ChatView
-                onChatUpdate={handleChatUpdate}
-                setActiveChatId={setActiveChatId}
-              />
-            }
-          />
-          <Route path="info" element={<ProjectInfoView />} />
-        </Route>
-        {/* Ruta de fallback general */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#111827' }}><CircularProgress size={50} sx={{ color: '#3b82f6' }} /></Box>}>
+        <Routes>
+          <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
+            <Route index element={allChats.length > 0 && user.role === "user" ? (<Navigate to={`/chat/${allChats[0]._id}`} replace />) : null} />
+            <Route path="chat/:chatId" element={<ChatView onChatUpdate={handleChatUpdate} setActiveChatId={setActiveChatId} />} />
+            <Route path="info" element={<ProjectInfoView />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </>
   );
 }
