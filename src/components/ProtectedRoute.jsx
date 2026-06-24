@@ -26,11 +26,14 @@ const ProtectedRoute = ({ allowedRoles }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  const isAllowed = allowedRoles && allowedRoles.includes(user.role);
+  // Regla de herencia: Si la ruta permite 'admin', un 'superadmin' también es autorizado de forma implícita
+  const isAllowed = allowedRoles && (
+    allowedRoles.includes(user.role) || 
+    (user.role === 'superadmin' && allowedRoles.includes('admin'))
+  );
 
   if (!isAllowed) {
-    // Redirect to a default page if the role is not authorized
-    // AppLogic will handle the final redirection based on role
+    // Redireccionar al home si el rol no tiene autorización
     return <Navigate to="/" replace />;
   }
 

@@ -37,7 +37,7 @@ function AppLogic({ darkMode, toggleDarkMode }) {
     React.useState(false);
   const hasInitialized = React.useRef(false);
 
-  // Verify token on component mount
+  // Verificar token en el montaje del componente
   React.useEffect(() => {
     const checkToken = () => {
       try {
@@ -52,13 +52,13 @@ function AppLogic({ darkMode, toggleDarkMode }) {
           }
         }
       } catch (error) {
-        console.error("Error checking token:", error);
+        console.error("Error comprobando el token:", error);
       }
     };
     checkToken();
   }, [location.pathname, logout, navigate]);
 
-  // Listen for token expired event
+  // Escuchar evento de token expirado
   React.useEffect(() => {
     const handleTokenExpired = () => {
       if (location.pathname === "/" || location.pathname === "/login") {
@@ -90,7 +90,7 @@ function AppLogic({ darkMode, toggleDarkMode }) {
       navigate(`/chat/${data._id}`);
     } catch (err) {
       if (err.tokenExpired) return;
-      setError("Could not create a new chat.");
+      setError("No se pudo crear un nuevo chat.");
     }
   }, [navigate]);
 
@@ -100,7 +100,8 @@ function AppLogic({ darkMode, toggleDarkMode }) {
       return;
     }
 
-    if (user.role === "admin") {
+    // Unificación de lógica: tanto 'admin' como 'superadmin' se redirigen al panel de gestión de usuarios
+    if (user.role === "admin" || user.role === "superadmin") {
       navigate("/users", { replace: true });
       setLoading(false);
       return;
@@ -123,7 +124,7 @@ function AppLogic({ darkMode, toggleDarkMode }) {
         hasInitialized.current = true;
       } catch (err) {
         if (err.tokenExpired) return;
-        setError("Could not load chats.");
+        setError("No se pudieron cargar los chats.");
       } finally {
         setLoading(false);
       }
@@ -163,8 +164,8 @@ function AppLogic({ darkMode, toggleDarkMode }) {
     );
   };
 
-  // While loading, or if the user is an admin who will be redirected, show a loader.
-  if (loading || (user && user.role === "admin")) {
+  // Bloqueo de renderizado para roles administrativos durante redirección
+  if (loading || (user && (user.role === "admin" || user.role === "superadmin"))) {
     return (
       <Box
         sx={{
@@ -182,10 +183,10 @@ function AppLogic({ darkMode, toggleDarkMode }) {
   return (
     <>
       <Dialog open={showTokenExpiredDialog} onClose={handleTokenExpiredClose}>
-        <DialogTitle>Session Expired</DialogTitle>
+        <DialogTitle>Sesión Expirada</DialogTitle>
         <DialogContent>
           <Typography>
-            Your session has expired. Please log in again to continue.
+            Su sesión ha expirado. Por favor inicie sesión nuevamente para continuar.
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -194,25 +195,14 @@ function AppLogic({ darkMode, toggleDarkMode }) {
             color="primary"
             variant="contained"
           >
-            Go to Login
+            Ir al Login
           </Button>
         </DialogActions>
       </Dialog>
 
       <Routes>
-        {/* User-specific routes with layout */}
+        {/* Rutas de usuarios comunes */}
         <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
-          {/* <Route
-            element={
-              <Layout
-                allChats={allChats}
-                handleNewChat={handleNewChat}
-                handleDeleteChat={handleDeleteChat}
-                darkMode={darkMode}
-                toggleDarkMode={toggleDarkMode}
-              />
-            }
-          > */}
           <Route
             index
             element={
@@ -231,9 +221,8 @@ function AppLogic({ darkMode, toggleDarkMode }) {
             }
           />
           <Route path="info" element={<ProjectInfoView />} />
-          {/* </Route> */}
         </Route>
-        {/* Fallback route for any other case */}
+        {/* Ruta de fallback general */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
