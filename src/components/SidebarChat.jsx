@@ -267,12 +267,13 @@ export const SidebarChat = ({
           </div>
 
           <div className="p-4 border-t border-light-border/10 dark:border-dark-border/10">
+            {/* CORRECCIÓN: dropdownPosition pasa a "top-right" para alinearse left-0 y expandirse a la derecha */}
             <UserProfile
               userName={user.name}
               onLogout={handleLogout}
               toggleDarkMode={toggleDarkMode}
               isDarkMode={darkMode}
-              dropdownPosition="top-left"
+              dropdownPosition="top-right" 
             />
           </div>
         </div>
@@ -302,12 +303,13 @@ export const SidebarChat = ({
           </div>
 
           <div className="flex flex-col items-center pb-2">
+            {/* CORRECCIÓN: dropdownPosition pasa a "top-right" para el avatar colapsado */}
             <UserProfile
               userName={user.name}
               onLogout={handleLogout}
               toggleDarkMode={toggleDarkMode}
               isDarkMode={darkMode}
-              dropdownPosition="top-left"
+              dropdownPosition="top-right" 
             />
           </div>
         </div>
