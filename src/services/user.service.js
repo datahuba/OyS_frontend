@@ -1,50 +1,94 @@
-import axios from 'axios';
+import { apiClient } from "../api/axios";
 
-// Mock data for development
-let mockUsers = [
-  { id: 1, name: 'Juan Pérez', email: 'juan@example.com', password: 'password123' },
-  { id: 2, name: 'María García', email: 'maria@example.com', password: 'password123' },
-  { id: 3, name: 'Carlos López', email: 'carlos@example.com', password: 'password123' },
-];
-
-const API_URL = 'http://localhost:3001/api/users'; // Placeholder URL
-
-const userService = {
-  getUsers: async () => {
-    // Simulate API call
-    return new Promise((resolve) => {
-      setTimeout(() => resolve({ data: mockUsers }), 500);
-    });
-    // return axios.get(API_URL);
-  },
-
-  createUser: async (userData) => {
-    // Simulate API call
-    return new Promise((resolve) => {
-      const newUser = { ...userData, id: Date.now() };
-      mockUsers = [...mockUsers, newUser];
-      setTimeout(() => resolve({ data: newUser }), 500);
-    });
-    // return axios.post(API_URL, userData);
-  },
-
-  updateUser: async (id, userData) => {
-    // Simulate API call
-    return new Promise((resolve) => {
-      mockUsers = mockUsers.map(user => user.id === id ? { ...user, ...userData } : user);
-      setTimeout(() => resolve({ data: { id, ...userData } }), 500);
-    });
-    // return axios.put(`${API_URL}/${id}`, userData);
-  },
-
-  deleteUser: async (id) => {
-    // Simulate API call
-    return new Promise((resolve) => {
-      mockUsers = mockUsers.filter(user => user.id !== id);
-      setTimeout(() => resolve({ data: { success: true } }), 500);
-    });
-    // return axios.delete(`${API_URL}/${id}`);
+class UserService {
+  /**
+   * Obtiene el listado de todos los usuarios desde MongoDB Atlas.
+   * @returns {Promise<Array>} - Array de usuarios.
+   */
+  async getUsers() {
+    try {
+      const response = await apiClient.get(`/admin/users`);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error al obtener usuarios en UserService:", error);
+      throw (
+        error.response?.data ||
+        new Error("Error desconocido al obtener usuarios.")
+      );
+    }
   }
-};
 
-export default userService;
+  /**
+   * Crea un nuevo usuario administrativo u operador.
+   * @param {string} name - Nombre del usuario.
+   * @param {string} email - Email del usuario.
+   * @param {string} password - Contraseña del usuario.
+   * @param {string} role - Rol del usuario.
+   * @returns {Promise<object>} - Usuario creado.
+   */
+  async createUser(name, email, password, role = "user") {
+    try {
+      const response = await apiClient.post(`/admin/users`, {
+        name,
+        email,
+        password,
+        role,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error al crear usuario en UserService:", error);
+      throw (
+        error.response?.data ||
+        new Error("Error desconocido al crear usuario.")
+      );
+    }
+  }
+
+  /**
+   * Actualiza los datos de un usuario existente.
+   * @param {string} userId - ID del usuario a actualizar.
+   * @param {string} name - Nuevo nombre del usuario.
+   * @param {string} email - Nuevo email del usuario.
+   * @param {string} password - Nueva contraseña del usuario (opcional).
+   * @param {string} role - Nuevo rol del usuario.
+   * @returns {Promise<object>} - Usuario actualizado.
+   */
+  async updateUser(userId, name, email, password, role) {
+    try {
+      const payload = { name, email, role };
+
+      if (password && password.trim() !== "") {
+        payload.password = password;
+      }
+
+      const response = await apiClient.put(`/admin/users/${userId}`, payload);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error al actualizar usuario en UserService:", error);
+      throw (
+        error.response?.data ||
+        new Error("Error desconocido al actualizar usuario.")
+      );
+    }
+  }
+
+  /**
+   * Elimina un usuario por ID.
+   * @param {string} userId - ID del usuario a eliminar.
+   * @returns {Promise<object>} - Respuesta del servidor.
+   */
+  async deleteUser(userId) {
+    try {
+      const response = await apiClient.delete(`/admin/users/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error al eliminar usuario en UserService:", error);
+      throw (
+        error.response?.data ||
+        new Error("Error desconocido al eliminar usuario.")
+      );
+    }
+  }
+}
+
+export const userService = new UserService();
