@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useImperativeHandle } from "react";
+import { useDropzone } from "react-dropzone";
 import ImageIcon from "@mui/icons-material/Image";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import CloseIcon from "@mui/icons-material/Close";
@@ -49,16 +50,32 @@ const MessageInput = React.forwardRef((
   const [typeCompatibilizacion, setTypeCompatibilizacion] = useState("");
   const [isShowMofRapido, setIsShowMofRapido] = useState(false);
 
+  useImperativeHandle(ref, () => ({
+    addFilesFromGlobal: (newFiles) => setFiles((prev) => [...prev, ...newFiles]),
+  }));
+
   useEffect(() => {
     if (selectedAgent !== "compatibilizacion" || files.length === 0) onChangeSelectedForm("form1");
   }, [selectedAgent, files.length, onChangeSelectedForm]);
 
+  // CORRECCIÓN: Evitar que se limpien los archivos si el agente activo es mof O compatibilización
   useEffect(() => {
-    if (selectedAgent !== "mof") {
+    if (selectedAgent !== "mof" && selectedAgent !== "compatibilizacion") {
       setFilesAgent({ form1: [], form2: [], form3: [], extra: [], mof1: [] });
       setShowMofContainer(false);
     }
   }, [selectedAgent]);
+
+  const onDrop = useCallback((acceptedFiles) => {
+    if (acceptedFiles.length > 0) {
+      const newFiles = acceptedFiles.map((file) => ({
+        file,
+        id: Math.random().toString(36).substr(2, 9),
+        preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+      }));
+      setFiles((prev) => [...prev, ...newFiles]);
+    }
+  }, [setFiles]);
 
   useEffect(() => {
     return () => {
@@ -278,99 +295,400 @@ const MessageInput = React.forwardRef((
           </div>
         </div>
         <input ref={mofFileInputRef} type="file" multiple className="hidden" onChange={handleMofFileInputChange} accept="*/*" />
+
+        {/* CONTENEDOR FLOTANTE "ARCHIVOS CARGADOS" (Sometido a corrección) */}
+        {showMofContainer && (
+          <div className="absolute bottom-full left-0 right-0 mb-4 bg-light-bg dark:bg-dark-bg rounded-lg border border-light-border dark:border-dark-border/20 z-30 max-h-[50vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-200">
+            <div className="sticky z-50 top-0 bg-light-bg dark:bg-dark-bg p-4 rounded-t-lg border-b border-light-border dark:border-dark-border/20">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-light-primary dark:text-dark-primary">
+                  Archivos Cargados para Procesamiento
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleMofCancel}
+                    className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-light-bg dark:bg-dark-bg hover:bg-gray-100 dark:hover:bg-gray-700 text-light-primary dark:text-dark-primary transition-colors"
+                    disabled={loaderCompFacultativoFiles}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleGenerateResponseAgent}
+                    disabled={
+                      loaderCompFacultativoFiles ||
+                      Object.values(filesAgent).every((arr) => arr.length === 0)
+                    }
+                    className={`px-4 py-2 text-sm rounded-lg transition-all font-semibold ${
+                      Object.values(filesAgent).some((arr) => arr.length > 0) &&
+                      !loaderCompFacultativoFiles
+                        ? "bg-light-secondary hover:bg-light-secondary_h text-white shadow-md cursor-pointer"
+                        : "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                    }`}
+                  >
+                    {loaderCompFacultativoFiles ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                        Procesando...
+                      </div>
+                    ) : (
+                      "Enviar Todo"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {formOptions.map((option) => {
+                const formFiles = filesAgent[option.value] || [];
+                if (formFiles.length === 0) return null;
+
+                return (
+                  <div
+                    key={option.value}
+                    className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-[#151a23]"
+                  >
+                    <div className="flex items-center gap-2 mb-3">
+                      <DescriptionIcon
+                        size={16}
+                        className="text-light-secondary"
+                      />
+                      <span className="font-semibold text-light-primary dark:text-dark-primary">
+                        {option.label}
+                      </span>
+                      <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-full font-medium">
+                        {formFiles.length} archivo{formFiles.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      {formFiles.map((fileObj) => (
+                        <div
+                          key={fileObj.id}
+                          className="relative group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 w-24"
+                        >
+                          <div className="w-full h-14 flex items-center justify-center relative bg-gray-100 dark:bg-gray-700">
+                            {fileObj.preview ? (
+                              <img
+                                src={fileObj.preview}
+                                alt="Preview"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="text-gray-400 dark:text-gray-500">
+                                {getFileIcon(fileObj.file.type)}
+                              </div>
+                            )}
+
+                            <button
+                              onClick={() =>
+                                removeMofFile(option.value, fileObj.id)
+                              }
+                              className="absolute top-1 right-1 w-5 h-5 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                            >
+                              <CloseIcon size={12} className="text-white" />
+                            </button>
+                          </div>
+
+                          <div className="p-2 border-t border-gray-200 dark:border-gray-700 text-center">
+                            <p
+                              className="text-[10px] font-medium text-gray-900 dark:text-gray-100 truncate "
+                              title={fileObj.file.name}
+                            >
+                              {fileObj.file.name}
+                            </p>
+                            <p className="text-[9px] text-gray-400">
+                              {formatFileSize(fileObj.file.size)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="w-full relative mx-auto max-w-3xl">
-      <div className="flex justify-between items-center mb-2 px-2">
-        <AgentSelector loaderCompFacultativoFiles={loaderCompFacultativoFiles} changeAgentLoader={changeAgentLoader} selectAgent={selectedAgent} onSelect={handleAgentChange} />
-        {selectedAgent === "chat" && (
-          <FormControlLabel
-            control={<Switch checked={!useGlobalContext} onChange={(e) => setUseGlobalContext(!e.target.checked)} color="primary" size="small" />}
-            label={<span className="text-xs font-medium text-gray-500 dark:text-gray-400">{!useGlobalContext ? "Contexto global activo" : "Usar contexto global"}</span>}
-          />
-        )}
-      </div>
-
-      <div className={`relative flex flex-col rounded-3xl transition-all duration-300 border-2 ${isDragActive || isDragOver ? "border-blue-500 bg-blue-50/50 dark:bg-blue-900/10 shadow-lg" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm"} ${error ? "border-red-400" : ""}`}>
-        
-        {files.length > 0 && (
-          <div className="flex flex-wrap gap-2 p-3 border-b border-gray-100 dark:border-gray-700/50">
-            {files.map((fileObj) => (
-              <div key={fileObj.id} className="group relative flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-1.5 pr-8 shadow-sm">
-                <div className="w-8 h-8 rounded-md bg-white dark:bg-gray-800 flex items-center justify-center flex-shrink-0 text-light-secondary overflow-hidden">
-                  {fileObj.preview ? <img src={fileObj.preview} alt="preview" className="w-full h-full object-cover" /> : getFileIcon(fileObj.file.type)}
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate max-w-[120px]">{fileObj.file.name}</span>
-                  <span className="text-[10px] text-gray-400">{formatFileSize(fileObj.file.size)}</span>
-                </div>
-                <button onClick={() => removeFile(fileObj.id)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors">
-                  <CloseIcon sx={{ fontSize: 16 }} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="flex items-end p-2 gap-2">
-          <div className="relative mb-1" ref={optionsRef}>
-            <button
-              onClick={() => setShowOptions(!showOptions)}
-              disabled={selectedAgent === "normativas"}
-              className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 ${showOptions ? "bg-light-secondary text-white rotate-45" : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"} disabled:opacity-50`}
+    <div className="space-y-4 flex flex-col w-full mx-auto max-w-3xl">
+      {files.length > 0 && (
+        <div className="flex flex-wrap gap-2 p-1">
+          {files.map((fileObj) => (
+            <div
+              key={fileObj.id}
+              className="group relative flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-1.5 pr-8 shadow-sm"
             >
-              <AddIcon />
-            </button>
-            {showOptions && (
-              <div className="absolute bottom-full left-0 mb-2 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden min-w-[200px] z-30">
-                {selectedAgent === "compatibilizacion" ? (
-                  <>
-                    <button onClick={handleFileSelect} className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-sm text-gray-700 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700"><AttachFileIcon fontSize="small" /> Subir archivo</button>
-                    <button onClick={() => handleShowCompatibilizacion("facultativa")} className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-sm text-gray-700 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700"><DescriptionIcon fontSize="small" /> Facultativo</button>
-                    <button onClick={() => handleShowCompatibilizacion("administrativa")} className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-sm text-gray-700 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700"><DescriptionIcon fontSize="small" /> Administrativo</button>
-                    <button onClick={() => handleShowConsolidado("consolidado")} className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-sm text-gray-700 dark:text-gray-200"><DescriptionIcon fontSize="small" /> Consolidado</button>
-                  </>
-                ) : selectedAgent === "mof" ? (
-                  <>
-                    <button onClick={handleFileSelect} className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-sm text-gray-700 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700"><AttachFileIcon fontSize="small" /> Subir archivo</button>
-                    <button onClick={handleShowMofRapido} className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-sm text-gray-700 dark:text-gray-200"><DescriptionIcon fontSize="small" /> MOF rápido</button>
-                  </>
+              <div className="w-8 h-8 rounded-md bg-white dark:bg-gray-800 flex items-center justify-center flex-shrink-0 text-light-secondary overflow-hidden">
+                {fileObj.preview ? (
+                  <img
+                    src={fileObj.preview}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
-                  <button onClick={handleFileSelect} className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-sm text-gray-700 dark:text-gray-200"><AttachFileIcon fontSize="small" /> Subir archivo</button>
+                  <div className="text-gray-400 dark:text-gray-500">
+                    {getFileIcon(fileObj.file.type)}
+                  </div>
                 )}
               </div>
-            )}
+              <div className="p-1 border-t border-gray-100 dark:border-gray-700">
+                <p
+                  className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate"
+                  title={fileObj.file.name}
+                >
+                  {fileObj.file.name.length > 15
+                    ? fileObj.file.name.substring(0, 12) +
+                      "..." +
+                      fileObj.file.name.split(".").pop()
+                    : fileObj.file.name}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {formatFileSize(fileObj.file.size)}
+                </p>
+              </div>
+              <button
+                onClick={() => removeFile(fileObj.id)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors"
+              >
+                <CloseIcon sx={{ fontSize: 16 }} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="relative">
+        {selectedAgent === "chat" && (
+          <div className="flex justify-end mb-2 px-2">
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={!useGlobalContext}
+                  onChange={(e) => setUseGlobalContext(!e.target.checked)}
+                  color="warning"
+                  size="small"
+                />
+              }
+              label={
+                <span className="text-sm text-gray-600 dark:text-gray-300">
+                  {!useGlobalContext
+                    ? "Contexto global activo"
+                    : "Usar contexto global"}
+                </span>
+              }
+            />
           </div>
+        )}
+        <div
+          className={`relative border-4 rounded-3xl shadow-md transition-all duration-300 ease-in-out ${
+            isDragActive || isDragOver
+              ? "border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 shadow-lg scale-[1.01]"
+              : !useGlobalContext && selectedAgent === "chat"
+              ? "border-orange-400 dark:border-orange-500 bg-orange-50/50 dark:bg-orange-900/10 shadow-[0_0_20px_rgba(251,146,60,0.3)] animate-pulse"
+              : "border-light-border dark:border-dark-border/20 bg-light-bg dark:bg-dark-bg"
+          }`}
+        >
+          <div className="flex flex-col p-3 gap-3">
+            <div className="flex-1">
+              <textarea
+                ref={textareaRef}
+                className="w-full bg-transparent border-none resize-none focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 leading-relaxed"
+                placeholder="Escribe tu mensaje..."
+                value={message}
+                onChange={(e) => {
+                  setMessage(e.target.value);
+                  setTimeout(adjustTextareaHeight, 0);
+                }}
+                onKeyDown={handleKeyDown}
+                disabled={loading}
+                rows="1"
+                style={{ minHeight: "24px", maxHeight: "420px" }}
+              />
+            </div>
+            <div className="flex justify-between">
+              <div className="flex items-center gap-2">
+                <div className="relative" ref={optionsRef}>
+                  <button
+                    onClick={() => setShowOptions(!showOptions)}
+                    disabled={selectedAgent === "normativas"}
+                    className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center shadow-md justify-center transition-all duration-200 ${
+                      showOptions
+                        ? "bg-light-secondary text-light-bg dark:text-dark-primary"
+                        : "bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-light-primary dark:text-dark-primary"
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    <div
+                      className={`transform transition-transform duration-200  ${
+                        showOptions ? "rotate-45" : ""
+                      }`}
+                    >
+                      <AddIcon />
+                    </div>
+                  </button>
 
-          <textarea
-            ref={textareaRef}
-            className="flex-1 max-h-40 min-h-[44px] bg-transparent border-none resize-none focus:outline-none text-[15px] text-gray-900 dark:text-gray-100 placeholder-gray-500 py-2.5 custom-scrollbar"
-            placeholder={(isDragActive || isDragOver) ? "Suelta los archivos aquí..." : "Escribe un mensaje..."}
-            value={message}
-            onChange={(e) => { setMessage(e.target.value); setTimeout(adjustTextareaHeight, 0); }}
-            onKeyDown={handleKeyDown}
-            disabled={loading}
-            rows="1"
-          />
-
-          <button
-            onClick={handleSend}
-            disabled={loading || (!message.trim() && files.length === 0)}
-            className={`flex-shrink-0 w-10 h-10 mb-1 rounded-full flex items-center justify-center transition-all duration-200 ${
-              (message.trim() || files.length > 0) && !loading
-                ? "bg-light-secondary text-white hover:bg-light-secondary_h shadow-md scale-100"
-                : "bg-gray-100 dark:bg-gray-700 text-gray-400 scale-95 cursor-not-allowed"
-            }`}
-          >
-            <SendIcon fontSize="small" className={message.trim() || files.length > 0 ? "ml-1" : ""} />
-          </button>
+                  {showOptions && (
+                    <div className="absolute bottom-full left-0 mb-4 bg-light-bg_h dark:bg-dark-bg rounded-lg shadow-lg border border-light-border/30 dark:border-dark-border/30 overflow-hidden min-w-[200px] z-30">
+                      {selectedAgent === "compatibilizacion" ? (
+                        <>
+                          <button
+                            onClick={handleFileSelect}
+                            className="w-full px-3 py-2.5 text-left hover:bg-light-bg dark:hover:bg-dark-bg flex items-center gap-2.5 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                          >
+                            <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
+                              <Upload
+                                size={14}
+                                className="text-light-primary dark:text-dark-primary"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-light-primary dark:text-dark-primary">
+                                Subir archivo
+                              </p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleShowCompatibilizacion("facultativa")
+                            }
+                            className="w-full px-3 py-2.5 text-left hover:bg-light-bg dark:hover:bg-dark-bg flex items-center gap-2.5 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                          >
+                            <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
+                              <DescriptionIcon
+                                size={14}
+                                className="text-light-primary dark:text-dark-primary"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-light-primary dark:text-dark-primary">
+                                Facultativo
+                              </p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleShowCompatibilizacion("administrativa")
+                            }
+                            className="w-full px-3 py-2.5 text-left hover:bg-light-bg dark:hover:bg-dark-bg flex items-center gap-2.5 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                          >
+                            <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
+                              <DescriptionIcon
+                                size={14}
+                                className="text-light-primary dark:text-dark-primary"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-light-primary dark:text-dark-primary">
+                                Administrativo
+                              </p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => handleShowConsolidado("consolidado")}
+                            className="w-full px-3 py-2.5 text-left hover:bg-light-bg dark:hover:bg-dark-bg flex items-center gap-2.5 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                          >
+                            <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
+                              <DescriptionIcon
+                                size={14}
+                                className="text-light-primary dark:text-dark-primary"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-light-primary dark:text-dark-primary">
+                                Consolidado
+                              </p>
+                            </div>
+                          </button>
+                        </>
+                      ) : selectedAgent === "mof" ? (
+                        <>
+                          <button
+                            onClick={handleFileSelect}
+                            className="w-full px-3 py-2.5 text-left hover:bg-light-bg dark:hover:bg-dark-bg flex items-center gap-2.5 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                          >
+                            <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
+                              <Upload
+                                size={14}
+                                className="text-light-primary dark:text-dark-primary"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-light-primary dark:text-dark-primary">
+                                Subir archivo
+                              </p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={handleShowMofRapido}
+                            className="w-full px-3 py-2.5 text-left hover:bg-light-bg dark:hover:bg-dark-bg flex items-center gap-2.5 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                          >
+                            <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
+                              <DescriptionIcon
+                                size={14}
+                                className="text-light-primary dark:text-dark-primary"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-light-primary dark:text-dark-primary">
+                                MOF rápido
+                              </p>
+                            </div>
+                          </button>{" "}
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={handleFileSelect}
+                            className="w-full px-3 py-2.5 text-left hover:bg-light-bg dark:hover:bg-dark-bg flex items-center gap-2.5 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                          >
+                            <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
+                              <Upload
+                                size={14}
+                                className="text-light-primary dark:text-dark-primary"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-light-primary dark:text-dark-primary">
+                                Subir archivo
+                              </p>
+                            </div>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={handleSend}
+                disabled={loading || (!message.trim() && files.length === 0)}
+                className={`flex-shrink-0 w-10 h-10 mb-1 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  (message.trim() || files.length > 0) && !loading
+                    ? "bg-light-secondary hover:bg-light-secondary_h text-white shadow-md hover:shadow-lg transform hover:scale-105"
+                    : "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                {loading ? (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current"></div>
+                ) : (
+                  <SendIcon />
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-      
-      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileInputChange} accept="*/*" />
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={handleFileInputChange}
+        accept="*/*"
+      />
     </div>
   );
 });
