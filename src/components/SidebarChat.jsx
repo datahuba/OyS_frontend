@@ -336,7 +336,7 @@ export const SidebarChat = ({
             
             <button
               onClick={handleNewChat}
-              className="flex items-center justify-center rounded-xl bg-light-two p-2 text-light-primary shadow-sm transition-all duration-200 hover:bg-light-two_d hover:shadow-lg dark:bg-dark-two dark:text-dark-primary dark:hover:bg-dark-two_d hover:bg-light-bg dark:hover:text-dark-bg dark:hover:bg-dark-two_d"
+              className="flex items-center justify-center rounded-xl bg-light-secondary dark:bg-dark-secondary p-2 text-white shadow-sm transition-all duration-200 hover:bg-light-secondary_h dark:hover:bg-dark-secondary_h hover:shadow-md"
               title="Nuevo chat"
             >
               <EditIcon className="h-5 w-5" />
