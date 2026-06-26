@@ -17,13 +17,21 @@ import CloseIcon from "@mui/icons-material/Close";
 import UserProfile from "./UserProfile";
 
 // ============================================================================
-// COMPONENTE INTELIGENTE: ITEM DE CHAT (Maneja su propio CRUD)
+// COMPONENTE INTELIGENTE: ITEM DE CHAT (Con Confirmación y Sincronización)
 // ============================================================================
 const ChatItem = ({ chat, isActive, onClick, onChatUpdated, onChatDeleted, onError }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [newTitle, setNewTitle] = useState(chat.title);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false); // Estado de confirmación
   const inputRef = useRef(null);
+
+  // Sincronizar el título interno si la IA lo cambia en la base de datos
+  useEffect(() => {
+    if (!isEditing) {
+      setNewTitle(chat.title);
+    }
+  }, [chat.title, isEditing]);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -49,6 +57,16 @@ const ChatItem = ({ chat, isActive, onClick, onChatUpdated, onChatDeleted, onErr
     }
   };
 
+  const confirmDelete = (e) => {
+    e.stopPropagation();
+    setIsConfirmingDelete(true);
+  };
+
+  const cancelDelete = (e) => {
+    e.stopPropagation();
+    setIsConfirmingDelete(false);
+  };
+
   const handleDelete = async (e) => {
     e.stopPropagation();
     try {
@@ -58,12 +76,13 @@ const ChatItem = ({ chat, isActive, onClick, onChatUpdated, onChatDeleted, onErr
     } catch (err) {
       onError("Error al eliminar el chat");
       setIsDeleting(false);
+      setIsConfirmingDelete(false);
     }
   };
 
   return (
     <div
-      onClick={!isEditing ? onClick : undefined}
+      onClick={!isEditing && !isConfirmingDelete ? onClick : undefined}
       className={`group relative flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-all duration-200 ${
         isActive
           ? "bg-light-bg dark:bg-dark-bg/50 shadow-sm"
@@ -92,23 +111,32 @@ const ChatItem = ({ chat, isActive, onClick, onChatUpdated, onChatDeleted, onErr
         )}
       </div>
 
-      {/* Botones de Acción (Ocultos por defecto, visibles en Hover o Activos) */}
-      <div className={`flex items-center gap-1 flex-shrink-0 ${isEditing ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity duration-200`}>
+      {/* Botones de Acción */}
+      <div className={`flex items-center gap-1 flex-shrink-0 ${isEditing || isConfirmingDelete ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity duration-200`}>
         {isEditing ? (
           <>
-            <button onClick={handleEditSubmit} className="p-1 text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30 rounded">
+            <button onClick={handleEditSubmit} className="p-1 text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30 rounded" title="Guardar">
               <CheckIcon sx={{ fontSize: 16 }} />
             </button>
-            <button onClick={(e) => { e.stopPropagation(); setIsEditing(false); setNewTitle(chat.title); }} className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded">
+            <button onClick={(e) => { e.stopPropagation(); setIsEditing(false); setNewTitle(chat.title); }} className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded" title="Cancelar">
+              <CloseIcon sx={{ fontSize: 16 }} />
+            </button>
+          </>
+        ) : isConfirmingDelete ? (
+          <>
+            <button onClick={handleDelete} className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded" title="Confirmar Eliminación">
+              <CheckIcon sx={{ fontSize: 16 }} />
+            </button>
+            <button onClick={cancelDelete} className="p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" title="Cancelar">
               <CloseIcon sx={{ fontSize: 16 }} />
             </button>
           </>
         ) : (
           <>
-            <button onClick={(e) => { e.stopPropagation(); setIsEditing(true); }} className="p-1 text-gray-400 hover:text-light-secondary dark:hover:text-dark-secondary hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors">
+            <button onClick={(e) => { e.stopPropagation(); setNewTitle(chat.title); setIsEditing(true); }} className="p-1 text-gray-400 hover:text-light-secondary dark:hover:text-dark-secondary hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors" title="Renombrar">
               <EditOutlinedIcon sx={{ fontSize: 16 }} />
             </button>
-            <button onClick={handleDelete} className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors">
+            <button onClick={confirmDelete} className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors" title="Eliminar Chat">
               <DeleteOutlineIcon sx={{ fontSize: 16 }} />
             </button>
           </>
