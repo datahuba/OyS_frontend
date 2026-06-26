@@ -22,15 +22,14 @@ import {
   ExpandMore
 } from "@mui/icons-material";
 import { Tabs, Tab, Box, CircularProgress, Accordion, AccordionSummary, AccordionDetails } from "@mui/material";
-import { userService } from "../api/user.service";
-import { apiClient } from "../api/axios"; // Importado para consumir los diagnósticos
+import { userService } from "../services/user.service"; // DIRECCIÓN ACTUALIZADA AL SERVICIO UNIFICADO
+import { apiClient } from "../api/axios"; 
 import UserSkeleton from "../components/skeletons/UserSkeleton";
 import UserProfile from "../components/UserProfile";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import useAppTheme from "../hooks/useAppTheme";
 
-// Componente auxiliar para el renderizado de paneles de pestañas
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
   return (
@@ -48,16 +47,13 @@ function TabPanel(props) {
 }
 
 const UsersPage = () => {
-  // Estados de navegación y UI
   const [tabValue, setTabValue] = useState(0);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { theme, darkMode, toggleDarkMode } = useAppTheme();
   const [notification, setNotification] = useState(null);
 
-  // ==========================================
-  // ESTADOS Y LÓGICA: GESTIÓN DE USUARIOS (TAB 0)
-  // ==========================================
+  // Estados Gestión de Usuarios
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -213,9 +209,7 @@ const UsersPage = () => {
     navigate("/login");
   };
 
-  // ==========================================
-  // ESTADOS Y LÓGICA: DIAGNÓSTICO DEL SISTEMA (TAB 1)
-  // ==========================================
+  // Lógica de Diagnósticos
   const [diagData, setDiagData] = useState(null);
   const [loadingDiag, setLoadingDiag] = useState(false);
 
@@ -233,7 +227,6 @@ const UsersPage = () => {
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
-    // Cargar diagnósticos dinámicamente solo si se accede a esa pestaña y no se han cargado aún
     if (newValue === 1 && !diagData) {
       fetchDiagnostics();
     }
@@ -288,7 +281,6 @@ const UsersPage = () => {
           </p>
         </div>
 
-        {/* CONTENEDOR DE PESTAÑAS */}
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 3, mb: 2 }}>
           <Tabs 
             value={tabValue} 
@@ -312,9 +304,7 @@ const UsersPage = () => {
           </Tabs>
         </Box>
 
-        {/* ==============================================
-            TAB 0: GESTIÓN DE USUARIOS
-        ============================================== */}
+        {/* TAB 0 */}
         <TabPanel value={tabValue} index={0}>
           <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-between">
             <div className="relative flex-1 max-w-md">
@@ -419,7 +409,6 @@ const UsersPage = () => {
             </table>
           </div>
 
-          {/* Users Cards (Mobile) */}
           <div className="md:hidden space-y-4">
             {loadingUsers ? (
               <UserSkeleton type="card" count={3} />
@@ -457,25 +446,13 @@ const UsersPage = () => {
                       <Email fontSize="small" />
                       <span>{u.email}</span>
                     </div>
-                    <div className="text-xs text-light-primary/70 dark:text-dark-primary/70">
-                      Registrado: {formatDate(u.createdAt)}
-                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {formatFileSize(u.file?.size || 0)}
+                    </p>
                   </div>
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => handleOpenModal("edit", u)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-light-secondary/10 dark:bg-dark-secondary text-light-primary dark:text-dark-primary rounded-lg hover:bg-light-secondary/20 dark:hover:bg-dark-secondary/20 transition-colors"
-                    >
-                      <Edit fontSize="small" />
-                      <span className="text-sm font-medium">Editar</span>
-                    </button>
-                    <button
-                      onClick={() => handleDeleteClick(u)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                    >
-                      <Delete fontSize="small" />
-                      <span className="text-sm font-medium">Eliminar</span>
-                    </button>
+                    <button onClick={() => handleOpenModal("edit", u)} className="flex-1 py-2 bg-light-border hover:bg-light-border/80 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg text-sm text-light-primary dark:text-dark-primary transition-all duration-200">Editar</button>
+                    <button onClick={() => handleDeleteClick(u)} className="flex-1 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm transition-all duration-200">Eliminar</button>
                   </div>
                 </div>
               ))
@@ -483,19 +460,16 @@ const UsersPage = () => {
           </div>
         </TabPanel>
 
-        {/* ==============================================
-            TAB 1: DIAGNÓSTICO DEL SISTEMA
-        ============================================== */}
+        {/* TAB 1 */}
         <TabPanel value={tabValue} index={1}>
           {loadingDiag ? (
-            <div className="flex flex-col justify-center items-center py-20">
-              <CircularProgress size={50} sx={{ color: darkMode ? '#9ca3af' : '#4b5563' }} />
-              <p className="mt-4 text-light-primary dark:text-dark-primary">Ejecutando diagnóstico en el clúster...</p>
+            <div className="flex flex-col justify-center items-center py-12">
+              <CircularProgress size={40} sx={{ color: '#3b82f6' }} />
+              <span className="mt-4 text-sm text-gray-500">Recuperando catálogo...</span>
             </div>
           ) : diagData ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               
-              {/* Tarjeta de MongoDB */}
               <div className="rounded-2xl shadow-xl border border-light-border dark:border-dark-border/20 p-6 bg-white dark:bg-[#1a1f2e]">
                 <div className="flex items-center gap-3 mb-4 border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="h-10 w-10 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
@@ -517,7 +491,6 @@ const UsersPage = () => {
                 </div>
               </div>
 
-              {/* Tarjeta del Pool Gemini */}
               <div className="rounded-2xl shadow-xl border border-light-border dark:border-dark-border/20 p-6 bg-white dark:bg-[#1a1f2e]">
                 <div className="flex items-center gap-3 mb-4 border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="h-10 w-10 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
@@ -537,7 +510,6 @@ const UsersPage = () => {
                 </div>
               </div>
 
-              {/* Tarjeta de Qdrant */}
               <div className="rounded-2xl shadow-xl border border-light-border dark:border-dark-border/20 p-6 bg-white dark:bg-[#1a1f2e]">
                 <div className="flex items-center gap-3 mb-4 border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="h-10 w-10 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
@@ -561,7 +533,6 @@ const UsersPage = () => {
                 </div>
               </div>
 
-              {/* Acordeón del Catálogo de Normativas */}
               <div className="col-span-1 md:col-span-2 lg:col-span-3 mt-4">
                 <Accordion 
                   sx={{ 
@@ -605,11 +576,7 @@ const UsersPage = () => {
         </TabPanel>
       </div>
 
-      {/* ==========================================
-          MODALES (CREATE, EDIT, DELETE) - MANTENIDOS INTACTOS
-      ========================================== */}
-      
-      {/* Create/Edit Modal */}
+      {/* Modales */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-light-bg dark:bg-dark-bg rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -687,7 +654,6 @@ const UsersPage = () => {
                   >
                     <option value="user">user</option>
                     <option value="admin">admin</option>
-                    {/* Se permite otorgar rol superadmin opcionalmente desde el panel */}
                     {user?.role === 'superadmin' && <option value="superadmin">superadmin</option>}
                   </select>
                 </div>
