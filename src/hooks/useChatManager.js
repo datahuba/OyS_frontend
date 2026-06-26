@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient, apiClient2 } from "../api/axios";
-import { chatService } from "../api/chat-api";
+import { chatService } from "../services/chat.service";
 import { alert } from "../utils/alert";
 
 export const useChatManager = (chatId, user) => {

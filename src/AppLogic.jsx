@@ -20,7 +20,7 @@ import { useAuth } from "./context/AuthContext";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import { apiClient, isTokenExpired } from "./api/axios";
-import { chatService } from "./api/chat-api";
+import { chatService } from "./services/chat.service";
 
 // Carga diferida de las vistas internas
 const ChatView = lazy(() => import("./views/ChatView.jsx"));
