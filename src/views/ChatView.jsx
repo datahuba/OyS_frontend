@@ -4,11 +4,9 @@ import { useAuth } from "../context/AuthContext";
 import { useDropzone } from "react-dropzone";
 import { useChatManager } from "../hooks/useChatManager";
 
-// Iconos y Componentes Visuales
 import EditIcon from "@mui/icons-material/Edit";
 import MenuIcon from "@mui/icons-material/Menu";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
-import { Loader } from "../components/Loader";
 import MessageInput from "../components/MessageInput";
 import { SidebarChat } from "../components/SidebarChat";
 import { ChatSkeleton } from "../components/skeletons/chatSkeleton";
@@ -18,10 +16,8 @@ function ChatView() {
   const { chatId } = useParams();
   const { user } = useAuth();
   
-  // Extraemos toda la inteligencia del Custom Hook
   const { state, setters, actions } = useChatManager(chatId, user);
   
-  // Estados puramente visuales (UI State)
   const [sidebarChatCollapsed, setSidebarChatCollapsed] = useState(false);
   const [isDragOverGlobal, setIsDragOverGlobal] = useState(false);
   const messageInputRef = useRef(null);
@@ -36,11 +32,8 @@ function ChatView() {
         preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
       }));
 
+      // Se asignan los archivos una única vez al estado global gestionado por el Hook
       setters.setFiles((prev) => [...prev, ...newFiles]);
-
-      if (messageInputRef.current) {
-        messageInputRef.current.addFilesFromGlobal(newFiles);
-      }
     }
   }, [setters]);
 
@@ -61,7 +54,6 @@ function ChatView() {
     <div {...getRootProps()} className="h-screen w-full overflow-hidden bg-light-bg dark:bg-dark-bg relative">
       <input {...getInputProps()} />
 
-      {/* Overlay global de drag & drop */}
       {(isDragActive || isDragOverGlobal) && (
         <div className="fixed inset-0 bg-blue-500/20 backdrop-blur-sm border-4 border-dashed border-blue-500 flex items-center justify-center z-50">
           <div className="text-center bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-200 dark:border-gray-700">
@@ -77,7 +69,6 @@ function ChatView() {
       )}
 
       <div className="relative flex h-full w-full">
-        {/* Overlay Sidebar Mobile */}
         {!sidebarChatCollapsed && (
           <div className="fixed inset-0 z-20 bg-black/20 backdrop-blur-sm md:hidden" onClick={toggleChatSidebar}></div>
         )}
@@ -100,7 +91,6 @@ function ChatView() {
           <div className="relative h-full flex-1 overflow-hidden">
             <div className="flex h-full w-full flex-col">
               
-              {/* Header chat mobile */}
               <div className="flex w-full items-center justify-between bg-light-bg px-4 py-3 dark:bg-dark-bg">
                 <div className="flex items-center gap-2">
                   <button
@@ -118,7 +108,6 @@ function ChatView() {
                 </button>
               </div>
 
-              {/* Área de Mensajes */}
               <div className="flex-1 overflow-y-auto p-2 sm:p-3 md:p-6 scroll-smooth">
                 <div className="mx-auto max-w-3xl space-y-6">
                   {state.currentChat?.messages.length === 0 && (
@@ -137,30 +126,20 @@ function ChatView() {
                   ) : (
                     <MessageList
                       conversation={state.currentChat?.messages}
-                      loading={state.loading}
+                      loading={state.loadingSendMessage} 
                     />
-                  )}
-
-                  {state.loadingSendMessage && (
-                    <div className="flex items-start justify-start">
-                      <div className="relative min-w-0">
-                        <div className="relative rounded-xl rounded-tl-none">
-                          <Loader />
-                        </div>
-                      </div>
-                    </div>
                   )}
                 </div>
               </div>
 
-              {/* Input Area (Delegando el estado visual) */}
               <div className="w-full px-1 pb-2 md:px-6 lg:mb-0">
                 <MessageInput
                   ref={messageInputRef}
                   onSendMessage={actions.handleSendMessage}
                   loading={state.loadingSendMessage}
                   error={state.error}
-                  disableGlobalDrop={isDragActive || isDragOverGlobal}
+                  isDragActive={isDragActive}
+                  isDragOver={isDragOverGlobal}
                   selectedAgent={state.selectedAgent}
                   handleAgentChange={actions.handleAgentChange}
                   selectedForm={state.selectedForm}

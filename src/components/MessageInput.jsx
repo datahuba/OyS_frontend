@@ -1,5 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, useImperativeHandle } from "react";
-import { useDropzone } from "react-dropzone";
+import React, { useState, useEffect, useRef } from "react";
 import ImageIcon from "@mui/icons-material/Image";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import CloseIcon from "@mui/icons-material/Close";
@@ -17,7 +16,8 @@ const MessageInput = React.forwardRef((
     onSendMessage,
     loading,
     error,
-    disableGlobalDrop,
+    isDragActive,
+    isDragOver,
     selectedAgent,
     handleAgentChange,
     selectedForm,
@@ -35,7 +35,6 @@ const MessageInput = React.forwardRef((
 ) => {
   const [message, setMessage] = useState("");
   const [showOptions, setShowOptions] = useState(false);
-  const [isDragOver, setIsDragOver] = useState(false);
   const [filesAgent, setFilesAgent] = useState({ form1: [], form2: [], form3: [], extra: [], mof1: [] });
   const [showMofContainer, setShowMofContainer] = useState(false);
   const [showCompatibilizar, setShowCompatibilizar] = useState(false);
@@ -50,10 +49,6 @@ const MessageInput = React.forwardRef((
   const [typeCompatibilizacion, setTypeCompatibilizacion] = useState("");
   const [isShowMofRapido, setIsShowMofRapido] = useState(false);
 
-  useImperativeHandle(ref, () => ({
-    addFilesFromGlobal: (newFiles) => setFiles((prev) => [...prev, ...newFiles]),
-  }));
-
   useEffect(() => {
     if (selectedAgent !== "compatibilizacion" || files.length === 0) onChangeSelectedForm("form1");
   }, [selectedAgent, files.length, onChangeSelectedForm]);
@@ -64,17 +59,6 @@ const MessageInput = React.forwardRef((
       setShowMofContainer(false);
     }
   }, [selectedAgent]);
-
-  const onDrop = useCallback((acceptedFiles) => {
-    if (acceptedFiles.length > 0) {
-      const newFiles = acceptedFiles.map((file) => ({
-        file,
-        id: Math.random().toString(36).substr(2, 9),
-        preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
-      }));
-      setFiles((prev) => [...prev, ...newFiles]);
-    }
-  }, [setFiles]);
 
   useEffect(() => {
     return () => {
@@ -90,18 +74,6 @@ const MessageInput = React.forwardRef((
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    multiple: true,
-    noClick: true,
-    noKeyboard: true,
-    onDragEnter: () => setIsDragOver(true),
-    onDragLeave: () => setIsDragOver(false),
-    onDropAccepted: () => setIsDragOver(false),
-    onDropRejected: () => setIsDragOver(false),
-    disabled: disableGlobalDrop || selectedAgent === "MOF",
-  });
 
   const handleSend = () => {
     if (!message.trim() && files.length === 0) return;
@@ -311,10 +283,7 @@ const MessageInput = React.forwardRef((
   }
 
   return (
-    <div {...getRootProps()} className="w-full relative mx-auto max-w-3xl">
-      <input {...getInputProps()} />
-      
-      {/* Cabecera superior con opciones globales */}
+    <div className="w-full relative mx-auto max-w-3xl">
       <div className="flex justify-between items-center mb-2 px-2">
         <AgentSelector loaderCompFacultativoFiles={loaderCompFacultativoFiles} changeAgentLoader={changeAgentLoader} selectAgent={selectedAgent} onSelect={handleAgentChange} />
         {selectedAgent === "chat" && (
@@ -325,10 +294,8 @@ const MessageInput = React.forwardRef((
         )}
       </div>
 
-      {/* Contenedor principal del input */}
       <div className={`relative flex flex-col rounded-3xl transition-all duration-300 border-2 ${isDragActive || isDragOver ? "border-blue-500 bg-blue-50/50 dark:bg-blue-900/10 shadow-lg" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm"} ${error ? "border-red-400" : ""}`}>
         
-        {/* Renderizado de burbujas de archivos cargados (Chips Minimalistas) */}
         {files.length > 0 && (
           <div className="flex flex-wrap gap-2 p-3 border-b border-gray-100 dark:border-gray-700/50">
             {files.map((fileObj) => (
@@ -349,7 +316,6 @@ const MessageInput = React.forwardRef((
         )}
 
         <div className="flex items-end p-2 gap-2">
-          {/* Botón de opciones/adjuntar */}
           <div className="relative mb-1" ref={optionsRef}>
             <button
               onClick={() => setShowOptions(!showOptions)}
