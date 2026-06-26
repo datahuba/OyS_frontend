@@ -17,16 +17,15 @@ import CloseIcon from "@mui/icons-material/Close";
 import UserProfile from "./UserProfile";
 
 // ============================================================================
-// COMPONENTE INTELIGENTE: ITEM DE CHAT (Con Confirmación y Sincronización)
+// COMPONENTE INTELIGENTE: ITEM DE CHAT
 // ============================================================================
 const ChatItem = ({ chat, isActive, onClick, onChatUpdated, onChatDeleted, onError }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [newTitle, setNewTitle] = useState(chat.title);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false); // Estado de confirmación
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false); 
   const inputRef = useRef(null);
 
-  // Sincronizar el título interno si la IA lo cambia en la base de datos
   useEffect(() => {
     if (!isEditing) {
       setNewTitle(chat.title);
@@ -111,7 +110,6 @@ const ChatItem = ({ chat, isActive, onClick, onChatUpdated, onChatDeleted, onErr
         )}
       </div>
 
-      {/* Botones de Acción */}
       <div className={`flex items-center gap-1 flex-shrink-0 ${isEditing || isConfirmingDelete ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity duration-200`}>
         {isEditing ? (
           <>
@@ -187,7 +185,7 @@ export const SidebarChat = ({
 
   return (
     <div
-      className={`relative z-30 bg-light-bg_h transition-all duration-300 ease-out dark:bg-dark-bg_h
+      className={`fixed md:relative h-full top-0 left-0 z-30 bg-light-bg_h transition-all duration-300 ease-out dark:bg-dark-bg_h
 			${sidebarChatCollapsed ? "w-0 md:w-16" : "w-[280px] md:w-[280px]"} 
 			${sidebarChatCollapsed ? "hidden md:block" : "block"} 
 			flex-shrink-0 border-r border-light-border/20 dark:border-dark-border/20`}
