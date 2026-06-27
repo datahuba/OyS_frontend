@@ -11,7 +11,7 @@ import MessageInput from "../components/MessageInput";
 import { SidebarChat } from "../components/SidebarChat";
 import { ChatSkeleton } from "../components/skeletons/chatSkeleton";
 import { MessageList } from "../components/MessageList";
-import { AgentSelector } from "../components/AgentSelector";
+import AgentSelector from "../components/AgentSelector"; // CORREGIDO: Importación por defecto limpia
 
 function ChatView() {
   const { chatId } = useParams();
@@ -32,6 +32,7 @@ function ChatView() {
         id: Math.random().toString(36).substr(2, 9),
         preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
       }));
+
       setters.setFiles((prev) => [...prev, ...newFiles]);
     }
   }, [setters]);
@@ -90,6 +91,7 @@ function ChatView() {
           <div className="relative h-full flex-1 overflow-hidden">
             <div className="flex h-full w-full flex-col">
               
+              {/* HEADER UNIFICADO */}
               <div className="flex w-full items-center justify-between bg-light-bg px-6 py-3 border-b border-light-border/20 dark:border-dark-border/10 h-14 flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <button
@@ -99,6 +101,7 @@ function ChatView() {
                     <MenuIcon className="h-5 w-5" />
                   </button>
                   
+                  {/* SELECTOR DE AGENTES EN CABECERA SUPERIOR */}
                   <AgentSelector
                     loaderCompFacultativoFiles={state.loaderCompFacultativoFiles}
                     changeAgentLoader={state.changeAgentLoader}
@@ -118,6 +121,7 @@ function ChatView() {
                 </div>
               </div>
 
+              {/* Área de Mensajes */}
               <div className="flex-1 overflow-y-auto p-2 sm:p-3 md:p-6 scroll-smooth">
                 <div className="mx-auto max-w-5xl space-y-6"> 
                   {!state.currentChat || (state.allChats.length === 0 && state.loading) ? (
@@ -154,7 +158,7 @@ function ChatView() {
                   loaderCompFacultativoFiles={state.loaderCompFacultativoFiles}
                   setLoaderCompFacultativoFiles={setters.setLoaderCompFacultativoFiles}
                   compSeconds={state.compSeconds}
-                  onStopGeneration={actions.handleStopGeneration} // ACCIÓN INYECTADA
+                  onStopGeneration={actions.handleStopGeneration} 
                 />
               </div>
             </div>

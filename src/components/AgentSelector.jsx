@@ -41,8 +41,8 @@ const agents = [
   },
 ];
 
-// Componente Selector de Tipo de Respuesta (Reutilizable)
-export const AgentSelector = ({
+// Componente Selector de Tipo de Respuesta (CORRECCIÓN: Se remueve el prefijo 'export' de la declaración)
+const AgentSelector = ({
   selectAgent,
   onSelect,
   className = "",
@@ -53,6 +53,7 @@ export const AgentSelector = ({
   const dropdownRef = useRef(null);
 
   const selected = agents.find((type) => type.id === selectAgent) || agents[0];
+  const SelectedIcon = selected.icon;
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -145,3 +146,4 @@ export const AgentSelector = ({
   );
 };
 
+export default AgentSelector;
