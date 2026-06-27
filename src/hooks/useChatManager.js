@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient, apiClient2 } from "../api/axios";
-import { chatService } from "../api/chat-api";
+import { chatService } from "../services/chat.service"; // CORREGIDO: Ruta de importación unificada
 import { alert } from "../utils/alert";
 import axios from "axios"; // Importación requerida para la validación de cancelación
 
