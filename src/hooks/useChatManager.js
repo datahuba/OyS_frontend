@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient, apiClient2 } from "../api/axios";
 import { chatService } from "../api/chat-api";
 import { alert } from "../utils/alert";
+import axios from "axios"; // Importación requerida para la validación de cancelación
 
 export const useChatManager = (chatId, user) => {
   const navigate = useNavigate();
+  const abortControllerRef = useRef(null); // Referencia del abortador de red
 
   // Estados Globales del Chat
   const [currentChat, setCurrentChat] = useState(null);
@@ -16,7 +18,7 @@ export const useChatManager = (chatId, user) => {
   const [loading, setLoading] = useState(true);
   const [loadingSendMessage, setLoadingSendMessage] = useState(false);
   const [changeAgentLoader, setChangeAgentLoader] = useState(false);
-  const [loaderCompFacultativoFiles, setLoaderCompFacultativoFiles] = useState(false); // Centralizado aquí
+  const [loaderCompFacultativoFiles, setLoaderCompFacultativoFiles] = useState(false); 
   const [error, setError] = useState(null);
 
   // Estados de Configuración y Formularios
@@ -24,7 +26,7 @@ export const useChatManager = (chatId, user) => {
   const [selectedForm, setSelectedForm] = useState("form1");
   const [files, setFiles] = useState([]);
   const [useGlobalContext, setUseGlobalContext] = useState(true);
-  const [compSeconds, setCompSeconds] = useState(0); // Cronómetro centralizado
+  const [compSeconds, setCompSeconds] = useState(0); 
 
   // Persistencia de Agente en LocalStorage
   useEffect(() => {
@@ -133,11 +135,24 @@ export const useChatManager = (chatId, user) => {
     }
   };
 
+  // ACCIÓN DE PARADA DE EMERGENCIA (Boton Stop)
+  const handleStopGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort(); // Cancela la petición de Axios inmediatamente
+      abortControllerRef.current = null;
+    }
+    setLoadingSendMessage(false);
+  }, []);
+
   const handleSendMessage = async (userText, filesToUpload, typeAgent) => {
     if (!currentChat || (!userText.trim() && (!filesToUpload || filesToUpload.length === 0))) return;
     
     setLoadingSendMessage(true);
     setError(null);
+
+    // Inicializar el controlador para esta llamada
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
 
     const userMessage = { sender: "user", text: userText, timestamp: new Date().toISOString(), error: false, tempId: Date.now() };
     if (userText.trim()) {
@@ -157,10 +172,10 @@ export const useChatManager = (chatId, user) => {
 
         if (selectedForm && selectedAgent === "consolidadoFacultades") {
           formData.append("formType", selectedForm);
-          const { data } = await apiClient.post("/extract-json", formData);
+          const { data } = await apiClient.post("/extract-json", formData, { signal });
           chatAfterFileUpload = data.updatedChat;
         } else {
-          const { data } = await apiClient.post("/process-document", formData);
+          const { data } = await apiClient.post("/process-document", formData, { signal });
           chatAfterFileUpload = data.updatedChat;
         }
         setCurrentChat(chatAfterFileUpload);
@@ -182,16 +197,21 @@ export const useChatManager = (chatId, user) => {
           documentId: chatAfterFileUpload.documentId,
           chatId: chatAfterFileUpload._id,
           useGlobalContext: useGlobalContext,
-        });
+        }, { signal });
         
         setCurrentChat(data.updatedChat);
         handleChatUpdate(data.updatedChat);
       }
     } catch (err) {
+      if (axios.isCancel(err)) {
+        console.log("[useChatManager] Inferencia cancelada de forma limpia por el usuario.");
+        return; // Salida silenciosa sin alertas rojas
+      }
       setError(`Error: ${err.response?.data?.message || err.message}`);
       alert("error", "Ocurrió un error inesperado, intente de nuevo");
     } finally {
       setLoadingSendMessage(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -220,7 +240,7 @@ export const useChatManager = (chatId, user) => {
       setLoaderCompFacultativoFiles
     },
     actions: {
-      handleSendMessage, handleAgentChange, handleNewChat, handleDeleteChat, handleChatUpdate, handleCompatibilizar
+      handleSendMessage, handleAgentChange, handleNewChat, handleDeleteChat, handleChatUpdate, handleCompatibilizar, handleStopGeneration
     }
   };
 };

@@ -9,6 +9,7 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import { Upload } from "@mui/icons-material";
 import { Switch, FormControlLabel } from "@mui/material";
 import { apiClient } from "../api/axios";
+import axios from "axios"; // Requerido para abortar peticiones
 
 const MessageInput = React.forwardRef((
   {
@@ -31,7 +32,8 @@ const MessageInput = React.forwardRef((
     setUseGlobalContext,
     loaderCompFacultativoFiles,
     setLoaderCompFacultativoFiles,
-    compSeconds
+    compSeconds,
+    onStopGeneration // Acción de parada de chat inyectada
   },
   ref
 ) => {
@@ -48,6 +50,8 @@ const MessageInput = React.forwardRef((
   const [isShowConsolidado, setIsShowConsolidado] = useState(false);
   const [typeCompatibilizacion, setTypeCompatibilizacion] = useState("");
   const [isShowMofRapido, setIsShowMofRapido] = useState(false);
+  
+  const abortControllerRef = useRef(null); // Abortador local para informes
 
   React.useImperativeHandle(ref, () => ({
     addFilesFromGlobal: (newFiles) => setFiles((prev) => [...prev, ...newFiles]),
@@ -107,12 +111,27 @@ const MessageInput = React.forwardRef((
     if (textareaRef.current) textareaRef.current.style.height = "auto";
   };
 
+  // MANEJADOR DE DETENCIÓN DE INFORMES (Stop Button para PDF/Gotenberg)
+  const handleStopReportGeneration = (e) => {
+    e.stopPropagation();
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort(); // Cancela la llamada en red de Axios
+      abortControllerRef.current = null;
+    }
+    setLoaderCompFacultativoFiles(false);
+    setShowCompatibilizar(false);
+  };
+
   const handleGenerateResponseAgent = async () => {
     const hasFiles = Object.values(filesAgent).some((fileArray) => fileArray.length > 0);
     if (!hasFiles) return;
 
     try {
       setLoaderCompFacultativoFiles(true);
+      
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
+
       const formData = new FormData();
       formData.append("chatId", currentChat._id);
 
@@ -131,15 +150,20 @@ const MessageInput = React.forwardRef((
       });
 
       let urlComp = selectedAgent === "mof" ? "mof-rapido" : typeCompatibilizacion === "facultativa" ? "comp-facultativa" : typeCompatibilizacion === "administrativa" ? "comp-administrativa" : "consolidado";
-      const { data: response } = await apiClient.post(`/informes/generar-${urlComp}`, formData);
+      const { data: response } = await apiClient.post(`/informes/generar-${urlComp}`, formData, { signal });
       
       setCurrentChat(response.updatedChat);
       setFilesAgent({ form1: [], form2: [], form3: [], extra: [], mof1: [] });
     } catch (error) {
+      if (axios.isCancel(error)) {
+        console.log("[MessageInput] Extracción e Informe cancelados de forma limpia.");
+        return;
+      }
       console.error("Error al enviar archivos:", error);
     } finally {
       setShowCompatibilizar(false);
       setLoaderCompFacultativoFiles(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -251,12 +275,6 @@ const MessageInput = React.forwardRef((
 
   const handleShowMofRapido = () => setIsShowMofRapido(!isShowMofRapido);
 
-  const formatCompTime = (secs) => {
-    const m = Math.floor(secs / 60).toString().padStart(2, '0');
-    const s = (secs % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
-
   const formOptions = [
     { value: "form1", label: "Form 1" },
     { value: "form2", label: "Form 2" },
@@ -267,8 +285,6 @@ const MessageInput = React.forwardRef((
 
   return (
     <div className="w-full relative mx-auto max-w-3xl">
-      
-      {/* Cabecera superior con opciones globales (SELECTOR REMOVIDO DE AQUÍ) */}
       <div className="flex justify-end items-center mb-2 px-2">
         {selectedAgent === "chat" && (
           <FormControlLabel
@@ -280,7 +296,8 @@ const MessageInput = React.forwardRef((
 
       <div className={`relative flex flex-col rounded-3xl transition-all duration-300 border-2 ${isDragActive || isDragOver ? "border-blue-500 bg-blue-50/50 dark:bg-blue-900/10 shadow-lg" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm"} ${error ? "border-red-400" : ""}`}>
         
-        {files.length > 0 && (
+        {/* RENDERIZADO INLINE DE CHIPS DE ARCHIVOS */}
+        {(files.length > 0 || Object.values(filesAgent).some(arr => arr.length > 0)) && (
           <div className="flex flex-wrap gap-2 p-3 border-b border-gray-100 dark:border-gray-700/50">
             {files.map((fileObj) => (
               <div key={fileObj.id} className="group relative flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-1.5 pr-8 shadow-sm max-w-[200px]">
@@ -296,12 +313,7 @@ const MessageInput = React.forwardRef((
                 </button>
               </div>
             ))}
-          </div>
-        )}
 
-        {/* Archivos de los formularios del agente */}
-        {Object.entries(filesAgent).some(([_, arr]) => arr.length > 0) && (
-          <div className="flex flex-wrap gap-2 p-3 border-b border-gray-100 dark:border-gray-700/50">
             {Object.entries(filesAgent).map(([formType, fileArray]) => 
               fileArray.map((fileObj) => (
                 <div key={fileObj.id} className="group relative flex items-center gap-2 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg p-1.5 pr-8 shadow-sm max-w-[220px]">
@@ -364,7 +376,7 @@ const MessageInput = React.forwardRef((
             rows="1"
           />
 
-          {/* TIMER FLOTANTE CON CRONÓMETRO ALINEADO AL LADO DEL BOTÓN ENVIAR (Estilo ChatGPT) */}
+          {/* TEMPORIZADOR ALINEADO AL LADO DEL ENVIAR */}
           {loaderCompFacultativoFiles && (
             <div className="mb-1 mr-1 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 shadow-sm animate-pulse flex-shrink-0">
               <CircularProgress size={14} thickness={5} sx={{ color: '#3b82f6' }} />
@@ -374,24 +386,34 @@ const MessageInput = React.forwardRef((
             </div>
           )}
 
+          {/* BOTÓN ENVIAR QUE SE CONVIERTE EN BOTÓN DE PARADA (CHATGPT STYLE) */}
           <button
-            onClick={handleSendClick}
-            disabled={loading || loaderCompFacultativoFiles || (!message.trim() && files.length === 0 && Object.values(filesAgent).every(arr => arr.length === 0))}
+            onClick={
+              loading 
+                ? onStopGeneration 
+                : loaderCompFacultativoFiles 
+                ? handleStopReportGeneration 
+                : handleSendClick
+            }
             className={`flex-shrink-0 w-10 h-10 mb-1 rounded-full flex items-center justify-center transition-all duration-200 ${
-              ((message.trim() || files.length > 0 || Object.values(filesAgent).some(arr => arr.length > 0)) && !loading && !loaderCompFacultativoFiles)
+              (loading || loaderCompFacultativoFiles)
+                ? "bg-red-50 dark:bg-red-900/20 text-red-500 border border-red-200 dark:border-red-800 animate-pulse scale-100 cursor-pointer"
+                : (message.trim() || files.length > 0 || Object.values(filesAgent).some(arr => arr.length > 0))
                 ? "bg-light-secondary text-white hover:bg-light-secondary_h shadow-md scale-100 cursor-pointer"
                 : "bg-gray-100 dark:bg-gray-700 text-gray-400 scale-95 cursor-not-allowed"
             }`}
+            title={loading || loaderCompFacultativoFiles ? "Detener generación" : "Enviar mensaje"}
           >
-            {loading ? (
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current"></div>
+            {loading || loaderCompFacultativoFiles ? (
+              // Icono de Stop: Cuadrado rojo minimalista de ChatGPT
+              <div className="w-3.5 h-3.5 bg-red-600 dark:bg-red-500 rounded-sm shadow-sm"></div>
             ) : (
               <SendIcon fontSize="small" className={message.trim() || files.length > 0 || Object.values(filesAgent).some(arr => arr.length > 0) ? "ml-1" : ""} />
             )}
           </button>
         </div>
 
-        {/* SELECTOR SEGMENTADO EN LA BASE INTERNA DEL INPUT */}
+        {/* SELECTOR SEGMENTADO INLINE */}
         {showCompatibilizar && (
           <div className="p-4 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/10 rounded-b-3xl">
             <div className="flex items-center justify-between mb-3">

@@ -11,7 +11,7 @@ import MessageInput from "../components/MessageInput";
 import { SidebarChat } from "../components/SidebarChat";
 import { ChatSkeleton } from "../components/skeletons/chatSkeleton";
 import { MessageList } from "../components/MessageList";
-import { AgentSelector } from "../components/AgentSelector"; // Importado en cabecera
+import { AgentSelector } from "../components/AgentSelector";
 
 function ChatView() {
   const { chatId } = useParams();
@@ -68,7 +68,6 @@ function ChatView() {
       )}
 
       <div className="relative flex h-full w-full">
-        {/* Overlay Sidebar Mobile */}
         {!sidebarChatCollapsed && (
           <div className="fixed inset-0 z-20 bg-black/20 backdrop-blur-sm md:hidden" onClick={toggleChatSidebar}></div>
         )}
@@ -91,8 +90,7 @@ function ChatView() {
           <div className="relative h-full flex-1 overflow-hidden">
             <div className="flex h-full w-full flex-col">
               
-              {/* HEADER UNIFICADO (Estilo ChatGPT - Superior Centro/Izquierda) */}
-              <div className="flex w-full items-center justify-between bg-light-bg dark:bg-dark-bg px-6 py-3 border-b border-light-border/20 dark:border-dark-border/10 h-14 flex-shrink-0">
+              <div className="flex w-full items-center justify-between bg-light-bg px-6 py-3 border-b border-light-border/20 dark:border-dark-border/10 h-14 flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <button
                     onClick={toggleChatSidebar}
@@ -101,7 +99,6 @@ function ChatView() {
                     <MenuIcon className="h-5 w-5" />
                   </button>
                   
-                  {/* SELECTOR DE AGENTES EN CABECERA SUPERIOR */}
                   <AgentSelector
                     loaderCompFacultativoFiles={state.loaderCompFacultativoFiles}
                     changeAgentLoader={state.changeAgentLoader}
@@ -121,20 +118,8 @@ function ChatView() {
                 </div>
               </div>
 
-              {/* Área de Mensajes */}
               <div className="flex-1 overflow-y-auto p-2 sm:p-3 md:p-6 scroll-smooth">
                 <div className="mx-auto max-w-5xl space-y-6"> 
-                  {state.currentChat?.messages.length === 0 && (
-                    <div className="flex flex-col items-center py-12 text-center md:py-20">
-                      <h3 className="mb-3 text-xl font-bold text-light-two md:text-2xl dark:text-dark-primary">
-                        ¡Hola! ¿En qué puedo ayudarte?
-                      </h3>
-                      <p className="max-w-md text-base text-light-two md:text-lg dark:text-dark-primary">
-                        Vamos! Inicia una conversación
-                      </p>
-                    </div>
-                  )}
-
                   {!state.currentChat || (state.allChats.length === 0 && state.loading) ? (
                     <ChatSkeleton messagesCount={4} />
                   ) : (
@@ -146,7 +131,6 @@ function ChatView() {
                 </div>
               </div>
 
-              {/* Input Area */}
               <div className="w-full px-1 pb-2 md:px-6 lg:mb-0">
                 <MessageInput
                   ref={messageInputRef}
@@ -170,6 +154,7 @@ function ChatView() {
                   loaderCompFacultativoFiles={state.loaderCompFacultativoFiles}
                   setLoaderCompFacultativoFiles={setters.setLoaderCompFacultativoFiles}
                   compSeconds={state.compSeconds}
+                  onStopGeneration={actions.handleStopGeneration} // ACCIÓN INYECTADA
                 />
               </div>
             </div>
