@@ -9,7 +9,6 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import { Upload } from "@mui/icons-material";
 import { Switch, FormControlLabel } from "@mui/material";
 import { apiClient } from "../api/axios";
-import { AgentSelector } from "./AgentSelector";
 
 const MessageInput = React.forwardRef((
   {
@@ -30,6 +29,9 @@ const MessageInput = React.forwardRef((
     setFiles,
     useGlobalContext,
     setUseGlobalContext,
+    loaderCompFacultativoFiles,
+    setLoaderCompFacultativoFiles,
+    compSeconds
   },
   ref
 ) => {
@@ -38,16 +40,12 @@ const MessageInput = React.forwardRef((
   const [filesAgent, setFilesAgent] = useState({ form1: [], form2: [], form3: [], extra: [], mof1: [] });
   const [showCompatibilizar, setShowCompatibilizar] = useState(false);
 
-  // Estados del Cronómetro de Compatibilización en el Botón de Enviar
-  const [compSeconds, setCompSeconds] = useState(0);
-
   const fileInputRef = useRef(null);
   const mofFileInputRef = useRef(null);
   const [selectedMofForm, setSelectedMofForm] = useState(null);
   const optionsRef = useRef(null);
   const textareaRef = useRef(null);
   const [isShowConsolidado, setIsShowConsolidado] = useState(false);
-  const [loaderCompFacultativoFiles, setLoaderCompFacultativoFiles] = useState(false);
   const [typeCompatibilizacion, setTypeCompatibilizacion] = useState("");
   const [isShowMofRapido, setIsShowMofRapido] = useState(false);
 
@@ -64,26 +62,6 @@ const MessageInput = React.forwardRef((
       setFilesAgent({ form1: [], form2: [], form3: [], extra: [], mof1: [] });
     }
   }, [selectedAgent]);
-
-  // Efecto del Cronómetro de Compatibilización
-  useEffect(() => {
-    let interval;
-    if (loaderCompFacultativoFiles) {
-      setCompSeconds(0);
-      interval = setInterval(() => {
-        setCompSeconds((s) => s + 1);
-      }, 1000);
-    } else {
-      setCompSeconds(0);
-    }
-    return () => clearInterval(interval);
-  }, [loaderCompFacultativoFiles]);
-
-  const formatCompTime = (secs) => {
-    const m = Math.floor(secs / 60).toString().padStart(2, '0');
-    const s = (secs % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
 
   const onDrop = React.useCallback((acceptedFiles) => {
     if (acceptedFiles.length > 0) {
@@ -111,7 +89,6 @@ const MessageInput = React.forwardRef((
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Unificación de la acción de envío principal
   const handleSendClick = () => {
     const hasAgentFiles = Object.values(filesAgent).some(arr => arr.length > 0);
     if (hasAgentFiles && (selectedAgent === "compatibilizacion" || selectedAgent === "mof")) {
@@ -274,6 +251,12 @@ const MessageInput = React.forwardRef((
 
   const handleShowMofRapido = () => setIsShowMofRapido(!isShowMofRapido);
 
+  const formatCompTime = (secs) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
   const formOptions = [
     { value: "form1", label: "Form 1" },
     { value: "form2", label: "Form 2" },
@@ -284,8 +267,9 @@ const MessageInput = React.forwardRef((
 
   return (
     <div className="w-full relative mx-auto max-w-3xl">
-      <div className="flex justify-between items-center mb-2 px-2">
-        <AgentSelector loaderCompFacultativoFiles={loaderCompFacultativoFiles} changeAgentLoader={changeAgentLoader} selectAgent={selectedAgent} onSelect={handleAgentChange} />
+      
+      {/* Cabecera superior con opciones globales (SELECTOR REMOVIDO DE AQUÍ) */}
+      <div className="flex justify-end items-center mb-2 px-2">
         {selectedAgent === "chat" && (
           <FormControlLabel
             control={<Switch checked={!useGlobalContext} onChange={(e) => setUseGlobalContext(!e.target.checked)} color="primary" size="small" />}
@@ -296,10 +280,8 @@ const MessageInput = React.forwardRef((
 
       <div className={`relative flex flex-col rounded-3xl transition-all duration-300 border-2 ${isDragActive || isDragOver ? "border-blue-500 bg-blue-50/50 dark:bg-blue-900/10 shadow-lg" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm"} ${error ? "border-red-400" : ""}`}>
         
-        {/* RENDERIZADO INLINE UNIFICADO DE ARCHIVOS ESTÁNDAR Y DE AGENTES (Estilo ChatGPT) */}
-        {(files.length > 0 || Object.values(filesAgent).some(arr => arr.length > 0)) && (
+        {files.length > 0 && (
           <div className="flex flex-wrap gap-2 p-3 border-b border-gray-100 dark:border-gray-700/50">
-            {/* Archivos del chat normal */}
             {files.map((fileObj) => (
               <div key={fileObj.id} className="group relative flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-1.5 pr-8 shadow-sm max-w-[200px]">
                 <div className="w-8 h-8 rounded-md bg-white dark:bg-gray-800 flex items-center justify-center flex-shrink-0 text-light-secondary overflow-hidden">
@@ -314,8 +296,12 @@ const MessageInput = React.forwardRef((
                 </button>
               </div>
             ))}
+          </div>
+        )}
 
-            {/* Archivos de los formularios del agente (Mapeados dinámicamente) */}
+        {/* Archivos de los formularios del agente */}
+        {Object.entries(filesAgent).some(([_, arr]) => arr.length > 0) && (
+          <div className="flex flex-wrap gap-2 p-3 border-b border-gray-100 dark:border-gray-700/50">
             {Object.entries(filesAgent).map(([formType, fileArray]) => 
               fileArray.map((fileObj) => (
                 <div key={fileObj.id} className="group relative flex items-center gap-2 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg p-1.5 pr-8 shadow-sm max-w-[220px]">
@@ -378,7 +364,16 @@ const MessageInput = React.forwardRef((
             rows="1"
           />
 
-          {/* BOTÓN ENVIAR ÚNICO Y CENTRALIZADO (Integra Cronómetro) */}
+          {/* TIMER FLOTANTE CON CRONÓMETRO ALINEADO AL LADO DEL BOTÓN ENVIAR (Estilo ChatGPT) */}
+          {loaderCompFacultativoFiles && (
+            <div className="mb-1 mr-1 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 shadow-sm animate-pulse flex-shrink-0">
+              <CircularProgress size={14} thickness={5} sx={{ color: '#3b82f6' }} />
+              <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">
+                {formatCompTime(compSeconds)}
+              </span>
+            </div>
+          )}
+
           <button
             onClick={handleSendClick}
             disabled={loading || loaderCompFacultativoFiles || (!message.trim() && files.length === 0 && Object.values(filesAgent).every(arr => arr.length === 0))}
@@ -388,22 +383,15 @@ const MessageInput = React.forwardRef((
                 : "bg-gray-100 dark:bg-gray-700 text-gray-400 scale-95 cursor-not-allowed"
             }`}
           >
-            {loading || loaderCompFacultativoFiles ? (
-              <div className="flex flex-col items-center justify-center relative">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current"></div>
-                {loaderCompFacultativoFiles && (
-                  <span className="absolute text-[8px] font-mono font-bold mt-8 text-light-secondary dark:text-dark-primary bg-light-bg dark:bg-dark-bg px-1 rounded shadow border border-light-border/20">
-                    {formatCompTime(compSeconds)}
-                  </span>
-                )}
-              </div>
+            {loading ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current"></div>
             ) : (
               <SendIcon fontSize="small" className={message.trim() || files.length > 0 || Object.values(filesAgent).some(arr => arr.length > 0) ? "ml-1" : ""} />
             )}
           </button>
         </div>
 
-        {/* SELECTOR SEGMENTADO EN LA BASE INTERNA DEL INPUT (Estilo de Caja Integrada) */}
+        {/* SELECTOR SEGMENTADO EN LA BASE INTERNA DEL INPUT */}
         {showCompatibilizar && (
           <div className="p-4 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/10 rounded-b-3xl">
             <div className="flex items-center justify-between mb-3">

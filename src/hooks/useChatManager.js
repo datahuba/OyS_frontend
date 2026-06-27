@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient, apiClient2 } from "../api/axios";
-import { chatService } from "../services/chat.service";
+import { chatService } from "../api/chat-api";
 import { alert } from "../utils/alert";
 
 export const useChatManager = (chatId, user) => {
@@ -16,6 +16,7 @@ export const useChatManager = (chatId, user) => {
   const [loading, setLoading] = useState(true);
   const [loadingSendMessage, setLoadingSendMessage] = useState(false);
   const [changeAgentLoader, setChangeAgentLoader] = useState(false);
+  const [loaderCompFacultativoFiles, setLoaderCompFacultativoFiles] = useState(false); // Centralizado aquí
   const [error, setError] = useState(null);
 
   // Estados de Configuración y Formularios
@@ -23,11 +24,24 @@ export const useChatManager = (chatId, user) => {
   const [selectedForm, setSelectedForm] = useState("form1");
   const [files, setFiles] = useState([]);
   const [useGlobalContext, setUseGlobalContext] = useState(true);
+  const [compSeconds, setCompSeconds] = useState(0); // Cronómetro centralizado
 
   // Persistencia de Agente en LocalStorage
   useEffect(() => {
     localStorage.setItem("selectedAgentId", selectedAgent);
   }, [selectedAgent]);
+
+  // Lógica del Cronómetro de Carga
+  useEffect(() => {
+    let interval;
+    if (loaderCompFacultativoFiles) {
+      setCompSeconds(0);
+      interval = setInterval(() => setCompSeconds((s) => s + 1), 1000);
+    } else {
+      setCompSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [loaderCompFacultativoFiles]);
 
   // Carga del Chat Actual
   const fetchChat = useCallback(async () => {
@@ -125,7 +139,6 @@ export const useChatManager = (chatId, user) => {
     setLoadingSendMessage(true);
     setError(null);
 
-    // Actualización optimista de UI
     const userMessage = { sender: "user", text: userText, timestamp: new Date().toISOString(), error: false, tempId: Date.now() };
     if (userText.trim()) {
       setCurrentChat(prev => ({ ...prev, messages: [...prev.messages, userMessage] }));
@@ -134,7 +147,6 @@ export const useChatManager = (chatId, user) => {
     try {
       let chatAfterFileUpload = currentChat;
       
-      // Lógica de subida de archivos
       if (filesToUpload && filesToUpload.length > 0) {
         if (!currentChat.activeContext) throw new Error("El contexto activo del chat no está definido.");
         
@@ -155,7 +167,6 @@ export const useChatManager = (chatId, user) => {
         handleChatUpdate(chatAfterFileUpload);
       }
 
-      // Lógica de inferencia de IA
       if (userText.trim()) {
         const historyForApi = [...chatAfterFileUpload.messages, { sender: "user", text: userText }].map(msg => ({
           role: msg.sender === "user" ? "user" : "model",
@@ -201,10 +212,12 @@ export const useChatManager = (chatId, user) => {
   return {
     state: {
       currentChat, allChats, activeChatId, loading, loadingSendMessage,
-      changeAgentLoader, error, selectedAgent, selectedForm, files, useGlobalContext
+      changeAgentLoader, error, selectedAgent, selectedForm, files, useGlobalContext,
+      loaderCompFacultativoFiles, compSeconds
     },
     setters: {
-      setCurrentChat, setActiveChatId, setError, setSelectedForm, setFiles, setUseGlobalContext
+      setCurrentChat, setActiveChatId, setError, setSelectedForm, setFiles, setUseGlobalContext,
+      setLoaderCompFacultativoFiles
     },
     actions: {
       handleSendMessage, handleAgentChange, handleNewChat, handleDeleteChat, handleChatUpdate, handleCompatibilizar

@@ -11,6 +11,7 @@ import MessageInput from "../components/MessageInput";
 import { SidebarChat } from "../components/SidebarChat";
 import { ChatSkeleton } from "../components/skeletons/chatSkeleton";
 import { MessageList } from "../components/MessageList";
+import { AgentSelector } from "../components/AgentSelector"; // Importado en cabecera
 
 function ChatView() {
   const { chatId } = useParams();
@@ -31,7 +32,6 @@ function ChatView() {
         id: Math.random().toString(36).substr(2, 9),
         preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
       }));
-
       setters.setFiles((prev) => [...prev, ...newFiles]);
     }
   }, [setters]);
@@ -68,6 +68,7 @@ function ChatView() {
       )}
 
       <div className="relative flex h-full w-full">
+        {/* Overlay Sidebar Mobile */}
         {!sidebarChatCollapsed && (
           <div className="fixed inset-0 z-20 bg-black/20 backdrop-blur-sm md:hidden" onClick={toggleChatSidebar}></div>
         )}
@@ -90,26 +91,39 @@ function ChatView() {
           <div className="relative h-full flex-1 overflow-hidden">
             <div className="flex h-full w-full flex-col">
               
-              <div className="flex w-full items-center justify-between bg-light-bg px-4 py-3 dark:bg-dark-bg">
+              {/* HEADER UNIFICADO (Estilo ChatGPT - Superior Centro/Izquierda) */}
+              <div className="flex w-full items-center justify-between bg-light-bg dark:bg-dark-bg px-6 py-3 border-b border-light-border/20 dark:border-dark-border/10 h-14 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={toggleChatSidebar}
+                    className="flex items-center justify-center rounded-lg bg-light-two p-1.5 text-light-primary transition-all duration-200 hover:bg-light-two_d dark:bg-dark-two dark:text-dark-primary md:hidden"
+                  >
+                    <MenuIcon className="h-5 w-5" />
+                  </button>
+                  
+                  {/* SELECTOR DE AGENTES EN CABECERA SUPERIOR */}
+                  <AgentSelector
+                    loaderCompFacultativoFiles={state.loaderCompFacultativoFiles}
+                    changeAgentLoader={state.changeAgentLoader}
+                    selectAgent={state.selectedAgent}
+                    onSelect={actions.handleAgentChange}
+                  />
+                </div>
+
                 <div className="flex items-center gap-2">
                   <button
                     onClick={actions.handleNewChat}
-                    className="flex items-center shadow-md justify-center rounded-lg bg-light-two p-1 text-light-primary transition-all duration-200 hover:bg-light-two_d dark:bg-dark-two dark:text-dark-primary dark:hover:bg-dark-two_d hover:bg-light-bg dark:hover:text-dark-bg dark:hover:bg-dark-two_d md:hidden"
+                    className="flex items-center shadow-sm justify-center rounded-lg bg-light-two p-1.5 text-light-primary transition-all duration-200 hover:bg-light-two_d dark:bg-dark-two dark:text-dark-primary md:hidden"
+                    aria-label="Nuevo chat"
                   >
-                    <EditIcon className="h-6 w-6" />
+                    <EditIcon className="h-5 w-5" />
                   </button>
                 </div>
-                <button
-                  onClick={toggleChatSidebar}
-                  className="flex items-center shadow-md justify-center rounded-lg bg-light-two p-1 text-light-primary transition-all duration-200 hover:bg-light-two_d dark:bg-dark-two dark:text-dark-primary dark:hover:bg-dark-two_d hover:bg-light-bg dark:hover:text-dark-bg dark:hover:bg-dark-two_d md:hidden"
-                >
-                  <MenuIcon className="h-6 w-6 " />
-                </button>
               </div>
 
-              {/* Área de Mensajes (Ampliación de ancho) */}
+              {/* Área de Mensajes */}
               <div className="flex-1 overflow-y-auto p-2 sm:p-3 md:p-6 scroll-smooth">
-                <div className="mx-auto max-w-5xl space-y-6"> {/* Ampliado de max-w-3xl a max-w-5xl */}
+                <div className="mx-auto max-w-5xl space-y-6"> 
                   {state.currentChat?.messages.length === 0 && (
                     <div className="flex flex-col items-center py-12 text-center md:py-20">
                       <h3 className="mb-3 text-xl font-bold text-light-two md:text-2xl dark:text-dark-primary">
@@ -132,6 +146,7 @@ function ChatView() {
                 </div>
               </div>
 
+              {/* Input Area */}
               <div className="w-full px-1 pb-2 md:px-6 lg:mb-0">
                 <MessageInput
                   ref={messageInputRef}
@@ -152,6 +167,9 @@ function ChatView() {
                   useGlobalContext={state.useGlobalContext}
                   setUseGlobalContext={setters.setUseGlobalContext}
                   changeAgentLoader={state.changeAgentLoader}
+                  loaderCompFacultativoFiles={state.loaderCompFacultativoFiles}
+                  setLoaderCompFacultativoFiles={setters.setLoaderCompFacultativoFiles}
+                  compSeconds={state.compSeconds}
                 />
               </div>
             </div>
