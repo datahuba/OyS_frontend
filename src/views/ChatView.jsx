@@ -32,7 +32,6 @@ function ChatView() {
         preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
       }));
 
-      // Se asignan los archivos una única vez al estado global gestionado por el Hook
       setters.setFiles((prev) => [...prev, ...newFiles]);
     }
   }, [setters]);
@@ -108,8 +107,9 @@ function ChatView() {
                 </button>
               </div>
 
+              {/* Área de Mensajes (Ampliación de ancho) */}
               <div className="flex-1 overflow-y-auto p-2 sm:p-3 md:p-6 scroll-smooth">
-                <div className="mx-auto max-w-3xl space-y-6">
+                <div className="mx-auto max-w-5xl space-y-6"> {/* Ampliado de max-w-3xl a max-w-5xl */}
                   {state.currentChat?.messages.length === 0 && (
                     <div className="flex flex-col items-center py-12 text-center md:py-20">
                       <h3 className="mb-3 text-xl font-bold text-light-two md:text-2xl dark:text-dark-primary">

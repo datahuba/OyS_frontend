@@ -16,13 +16,11 @@ const ProcessingSimulator = () => {
     "Afinando detalles finales..."
   ];
 
-  // Cronómetro
   useEffect(() => {
     const timer = setInterval(() => setSeconds(s => s + 1), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Rotador de mensajes (cambia cada 4 segundos)
   useEffect(() => {
     const rotater = setInterval(() => {
       setMessageIndex(prev => (prev < aiStatuses.length - 1 ? prev + 1 : prev));
@@ -52,8 +50,6 @@ const ProcessingSimulator = () => {
 export const MessageList = ({ conversation, loading, onCopy }) => {
   const messagesEndRef = useRef(null);
 
-  // Corrección del Scroll: Se elimina el setTimeout que causaba los saltos bruscos.
-  // El scroll se ancla suavemente solo cuando cambia la longitud de la conversación o el estado de carga.
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -72,7 +68,12 @@ export const MessageList = ({ conversation, loading, onCopy }) => {
               isUser ? "justify-end" : "justify-start"
             }`}
           >
-            <div className="relative min-w-0 max-w-[85%] md:max-w-[75%]">
+            {/* Si es la IA, habilitamos el ancho completo (w-full max-w-full) para evitar tablas apretadas */}
+            <div className={`relative min-w-0 ${
+              isUser 
+                ? "max-w-[85%] md:max-w-[75%]" 
+                : "w-full max-w-full"
+            }`}>
               <div
                 className={`relative rounded-2xl p-3 md:p-4 shadow-sm ${
                   isUser
@@ -103,7 +104,6 @@ export const MessageList = ({ conversation, loading, onCopy }) => {
         );
       })}
       
-      {/* Montaje condicional del simulador de estado de la IA */}
       {loading && (
         <div className="flex justify-start">
           <ProcessingSimulator />
