@@ -19,7 +19,10 @@ import {
   VpnKey,
   Memory,
   Description,
-  ExpandMore
+  ExpandMore,
+  Check,
+  Block,
+  AccessTime
 } from "@mui/icons-material";
 import { Tabs, Tab, Box, CircularProgress, Accordion, AccordionSummary, AccordionDetails } from "@mui/material";
 import { userService } from "../services/user.service"; // DIRECCIÓN ACTUALIZADA AL SERVICIO UNIFICADO
@@ -64,6 +67,16 @@ const UsersPage = () => {
   const [userToDelete, setUserToDelete] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Estados Gestión de Solicitudes (ISSUE #OYS-063)
+  const [requests, setRequests] = useState([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [requestToReject, setRequestToReject] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [submittingRequestAction, setSubmittingRequestAction] = useState(false);
+  const [showApprovalSuccessModal, setShowApprovalSuccessModal] = useState(false);
+  const [approvalDetails, setApprovalDetails] = useState(null);
   
   const [formData, setFormData] = useState({
     name: "",
@@ -92,6 +105,14 @@ const UsersPage = () => {
   const showNotification = (message, type = "success") => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes || bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
   const handleOpenModal = (mode, userObj = null) => {
@@ -225,10 +246,94 @@ const UsersPage = () => {
     }
   };
 
+  // Lógica de Solicitudes (ISSUE #OYS-063)
+  const fetchRequests = async () => {
+    setLoadingRequests(true);
+    try {
+      const { data } = await apiClient.get('/admin/requests');
+      setRequests(data);
+    } catch (error) {
+      showNotification("Error al cargar las solicitudes de acceso", "error");
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  const handleApproveRequest = async (reqObj) => {
+    setSubmittingRequestAction(true);
+    try {
+      const { data } = await apiClient.put(`/admin/requests/${reqObj._id}/approve`);
+      showNotification("Solicitud aprobada correctamente", "success");
+      
+      // Actualizar la colección en memoria local
+      setRequests(
+        requests.map((r) => 
+          r._id === reqObj._id 
+            ? { ...r, status: "approved", temporaryPassword: data.temporaryPassword } 
+            : r
+        )
+      );
+
+      // Almacenar datos para desplegar modal con clave temporal
+      setApprovalDetails({
+        type: reqObj.type,
+        email: reqObj.email,
+        temporaryPassword: data.temporaryPassword
+      });
+      setShowApprovalSuccessModal(true);
+
+      // Si fue registro, actualizar el CRUD de usuarios
+      if (reqObj.type === "register") {
+        loadUsers();
+      }
+    } catch (error) {
+      showNotification(error.response?.data?.message || "Error al aprobar la solicitud", "error");
+    } finally {
+      setSubmittingRequestAction(false);
+    }
+  };
+
+  const handleRejectClick = (reqObj) => {
+    setRequestToReject(reqObj);
+    setRejectionReason("");
+    setShowRejectModal(true);
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!rejectionReason.trim()) {
+      showNotification("Por favor, escriba la justificación institucional", "error");
+      return;
+    }
+    setSubmittingRequestAction(true);
+    try {
+      await apiClient.put(`/admin/requests/${requestToReject._id}/reject`, {
+        rejectionReason
+      });
+      showNotification("Solicitud rechazada correctamente", "success");
+      
+      setRequests(
+        requests.map((r) => 
+          r._id === requestToReject._id 
+            ? { ...r, status: "rejected", rejectionReason } 
+            : r
+        )
+      );
+      
+      setShowRejectModal(false);
+      setRequestToReject(null);
+    } catch (error) {
+      showNotification(error.response?.data?.message || "Error al rechazar la solicitud", "error");
+    } finally {
+      setSubmittingRequestAction(false);
+    }
+  };
+
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
     if (newValue === 1 && !diagData) {
       fetchDiagnostics();
+    } else if (newValue === 2) {
+      fetchRequests();
     }
   };
 
@@ -301,10 +406,11 @@ const UsersPage = () => {
           >
             <Tab label="Gestión de Usuarios" />
             <Tab label="Diagnóstico del RAG e IA" />
+            <Tab label="Solicitudes de Acceso" />
           </Tabs>
         </Box>
 
-        {/* TAB 0 */}
+        {/* TAB 0: Gestión de Usuarios */}
         <TabPanel value={tabValue} index={0}>
           <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-between">
             <div className="relative flex-1 max-w-md">
@@ -418,7 +524,7 @@ const UsersPage = () => {
               </div>
             ) : (
               filteredUsers.map((u) => (
-                <div key={u._id} className="rounded-2xl shadow-lg border border-light-border dark:border-dark-border/20 p-4">
+                <div key={u._id} className="rounded-2xl shadow-lg border border-light-border dark:border-dark-border/20 p-4 bg-white dark:bg-gray-900">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
                       <div className="h-12 w-12 bg-light-secondary/10 dark:bg-dark-secondary/10 rounded-full flex items-center justify-center">
@@ -460,7 +566,7 @@ const UsersPage = () => {
           </div>
         </TabPanel>
 
-        {/* TAB 1 */}
+        {/* TAB 1: Diagnóstico de RAG e IA */}
         <TabPanel value={tabValue} index={1}>
           {loadingDiag ? (
             <div className="flex flex-col justify-center items-center py-12">
@@ -574,9 +680,222 @@ const UsersPage = () => {
             <div className="text-center py-10 text-red-500">Error al procesar la información de diagnóstico.</div>
           )}
         </TabPanel>
+
+        {/* TAB 2: Solicitudes de Acceso (ISSUE #OYS-063) */}
+        <TabPanel value={tabValue} index={2}>
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-light-primary dark:text-dark-primary">
+              Control Administrativo de Accesos
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Lista de solicitudes enviadas desde la pantalla pública de acceso. Evalúe la justificación institucional para aprobar o rechazar de manera segura.
+            </p>
+          </div>
+
+          <div className="hidden md:block rounded-2xl shadow-xl border border-light-border dark:border-dark-border/20 overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-light-primary dark:text-dark-primary uppercase tracking-wider">Tipo</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-light-primary dark:text-dark-primary uppercase tracking-wider">Solicitante / Email</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-light-primary dark:text-dark-primary uppercase tracking-wider">Justificación</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-light-primary dark:text-dark-primary uppercase tracking-wider">Estado</th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-light-primary dark:text-dark-primary uppercase tracking-wider">Fecha</th>
+                  <th className="px-6 py-4 text-right text-xs font-medium text-light-primary dark:text-dark-primary uppercase tracking-wider">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
+                {loadingRequests ? (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-12 text-center text-light-primary dark:text-dark-primary">
+                      <div className="flex flex-col items-center justify-center">
+                        <CircularProgress size={30} sx={{ color: '#3b82f6' }} />
+                        <span className="mt-2 text-sm text-gray-500">Cargando solicitudes...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : requests.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-12 text-center text-light-primary dark:text-dark-primary">
+                      No hay solicitudes registradas en la base de datos
+                    </td>
+                  </tr>
+                ) : (
+                  requests.map((r) => (
+                    <tr key={r._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                          r.type === "register"
+                            ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
+                            : "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300"
+                        }`}>
+                          {r.type === "register" ? "Registro" : "Restablecer"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-semibold text-light-primary dark:text-dark-primary">
+                          {r.name || "Sin Nombre"}
+                        </div>
+                        <div className="text-xs text-light-primary/70 dark:text-dark-primary/70">
+                          {r.email}
+                        </div>
+                        {r.department && (
+                          <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                            Dep: {r.department}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 max-w-xs">
+                        <div className="text-sm text-light-primary dark:text-dark-primary truncate" title={r.justification}>
+                          {r.justification}
+                        </div>
+                        {r.rejectionReason && (
+                          <div className="text-xs text-red-500 font-medium mt-1">
+                            Rechazo: {r.rejectionReason}
+                          </div>
+                        )}
+                        {r.temporaryPassword && (
+                          <div className="text-xs text-green-600 dark:text-green-400 font-medium mt-1">
+                            Clave Generada: <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">{r.temporaryPassword}</code>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
+                          r.status === "approved"
+                            ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
+                            : r.status === "rejected"
+                            ? "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300"
+                            : "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300"
+                        }`}>
+                          {r.status === "approved" && <Check className="w-3 h-3" />}
+                          {r.status === "rejected" && <Block className="w-3 h-3" />}
+                          {r.status === "pending" && <AccessTime className="w-3 h-3" />}
+                          {r.status === "approved" ? "Aprobado" : r.status === "rejected" ? "Rechazado" : "Pendiente"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-light-primary/70 dark:text-dark-primary/70">
+                        {formatDate(r.createdAt)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        {r.status === "pending" ? (
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => handleApproveRequest(r)}
+                              disabled={submittingRequestAction}
+                              className="px-3 py-1 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 text-green-700 dark:text-green-400 rounded-lg text-xs transition-colors"
+                            >
+                              Aprobar
+                            </button>
+                            <button
+                              onClick={() => handleRejectClick(r)}
+                              disabled={submittingRequestAction}
+                              className="px-3 py-1 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-700 dark:text-red-400 rounded-lg text-xs transition-colors"
+                            >
+                              Rechazar
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                            Procesada
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="md:hidden space-y-4">
+            {loadingRequests ? (
+              <div className="flex justify-center py-12">
+                <CircularProgress size={30} />
+              </div>
+            ) : requests.length === 0 ? (
+              <div className="text-center py-12 text-light-primary dark:text-dark-primary">
+                No hay solicitudes registradas en la base de datos
+              </div>
+            ) : (
+              requests.map((r) => (
+                <div key={r._id} className="rounded-2xl shadow-lg border border-light-border dark:border-dark-border/20 p-4 bg-white dark:bg-gray-900">
+                  <div className="flex justify-between items-center mb-3">
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                      r.type === "register"
+                        ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
+                        : "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300"
+                    }`}>
+                      {r.type === "register" ? "Registro" : "Restablecer"}
+                    </span>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                      r.status === "approved"
+                        ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
+                        : r.status === "rejected"
+                        ? "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300"
+                        : "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300"
+                    }`}>
+                      {r.status === "approved" ? "Aprobado" : r.status === "rejected" ? "Rechazado" : "Pendiente"}
+                    </span>
+                  </div>
+
+                  <div className="mb-2">
+                    <h4 className="text-sm font-semibold text-light-primary dark:text-dark-primary">
+                      {r.name || "Sin Nombre"}
+                    </h4>
+                    <p className="text-xs text-light-primary/70 dark:text-dark-primary/70">
+                      {r.email}
+                    </p>
+                    {r.department && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Dep: {r.department}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="text-xs bg-gray-50 dark:bg-gray-800 p-2.5 rounded-lg mb-3">
+                    <p className="font-semibold mb-1">Justificación:</p>
+                    <p className="text-light-primary/80 dark:text-dark-primary/80 italic">"{r.justification}"</p>
+                    {r.rejectionReason && (
+                      <p className="text-red-500 font-semibold mt-1">Rechazo: {r.rejectionReason}</p>
+                    )}
+                    {r.temporaryPassword && (
+                      <p className="text-green-600 dark:text-green-400 font-semibold mt-1">
+                        Clave Gen: <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">{r.temporaryPassword}</code>
+                      </p>
+                    )}
+                  </div>
+
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-3">
+                    Fecha: {formatDate(r.createdAt)}
+                  </p>
+
+                  {r.status === "pending" && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleApproveRequest(r)}
+                        disabled={submittingRequestAction}
+                        className="flex-1 py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-700 transition-colors"
+                      >
+                        Aprobar
+                      </button>
+                      <button
+                        onClick={() => handleRejectClick(r)}
+                        disabled={submittingRequestAction}
+                        className="flex-1 py-2 bg-red-600 dark:bg-red-500 text-white rounded-lg text-xs font-semibold hover:bg-red-700 transition-colors"
+                      >
+                        Rechazar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </TabPanel>
       </div>
 
-      {/* Modales */}
+      {/* Modales CRUD Usuarios */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-light-bg dark:bg-dark-bg rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -690,7 +1009,7 @@ const UsersPage = () => {
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-light-border dark:border-dark-border/20">
             <div className="flex items-center gap-3 mb-4">
               <div className="h-12 w-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
                 <Delete className="text-red-600 dark:text-red-400" />
@@ -718,6 +1037,103 @@ const UsersPage = () => {
                 className="flex-1 px-4 py-3 bg-red-600 dark:bg-red-500 text-white rounded-xl hover:bg-red-700 dark:hover:bg-red-600 transition-colors"
               >
                 Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Aprobación Exitosa con Despliegue de Contraseña Temporal (ISSUE #OYS-063) */}
+      {showApprovalSuccessModal && approvalDetails && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-light-border dark:border-dark-border/20">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-12 w-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+                <CheckCircle className="text-green-600 dark:text-green-400" />
+              </div>
+              <h2 className="text-xl font-bold text-light-primary dark:text-dark-primary">
+                Solicitud Aprobada
+              </h2>
+            </div>
+            
+            <p className="text-sm text-light-primary/70 dark:text-dark-primary/70 mb-4">
+              La solicitud de <strong>{approvalDetails.type === 'register' ? 'Registro' : 'Restablecimiento'}</strong> para el correo electrónico <strong>{approvalDetails.email}</strong> se ha procesado con éxito.
+            </p>
+
+            <div className="bg-gray-100 dark:bg-gray-900 rounded-xl p-4 border border-light-border/40 dark:border-dark-border/10 mb-6 text-center">
+              <span className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                Contraseña Temporal Generada
+              </span>
+              <code className="text-lg font-bold text-light-secondary dark:text-dark-secondary select-all">
+                {approvalDetails.temporaryPassword}
+              </code>
+              <span className="block text-[10px] text-gray-400 dark:text-gray-500 mt-2">
+                (Haz doble clic sobre el código para seleccionarlo y copiarlo. El usuario deberá emplear esta contraseña para su acceso).
+              </span>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowApprovalSuccessModal(false);
+                setApprovalDetails(null);
+              }}
+              className="w-full py-3 bg-light-secondary dark:bg-dark-secondary hover:bg-light-secondary_h dark:hover:bg-dark-secondary_h text-white rounded-xl text-sm font-semibold transition-colors animate-pulse"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Justificación de Rechazo de Solicitud (ISSUE #OYS-063) */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-light-border dark:border-dark-border/20">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-12 w-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                <Error className="text-red-600 dark:text-red-400" />
+              </div>
+              <h2 className="text-xl font-bold text-light-primary dark:text-dark-primary">
+                Rechazar Solicitud de Acceso
+              </h2>
+            </div>
+            
+            <p className="text-sm text-light-primary/70 dark:text-dark-primary/70 mb-4">
+              Está a punto de denegar la solicitud para el correo <strong>{requestToReject?.email}</strong>. Por favor, registre la justificación institucional para este rechazo:
+            </p>
+
+            <div className="space-y-2 mb-6">
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                Motivo del Rechazo
+              </label>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                required
+                rows={3}
+                className="w-full px-4 py-3 border border-light-border dark:border-dark-border/20 bg-light-bg dark:bg-dark-bg rounded-xl text-sm text-light-primary dark:text-dark-primary focus:outline-none focus:ring-2 focus:ring-light-secondary transition-colors resize-none"
+                placeholder="Ej. El correo electrónico no coincide con los registros autorizados por la Dirección de OyS."
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRequestToReject(null);
+                  setRejectionReason("");
+                }}
+                disabled={submittingRequestAction}
+                className="flex-1 px-4 py-3 border border-light-border dark:border-dark-border text-light-primary dark:text-dark-primary rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleRejectConfirm}
+                disabled={submittingRequestAction || !rejectionReason.trim()}
+                className="flex-1 px-4 py-3 bg-red-600 dark:bg-red-500 hover:bg-red-700 dark:hover:bg-red-600 text-white font-medium rounded-xl transition-colors"
+              >
+                {submittingRequestAction ? "Procesando..." : "Confirmar Rechazo"}
               </button>
             </div>
           </div>
