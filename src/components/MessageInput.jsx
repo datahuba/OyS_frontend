@@ -7,9 +7,9 @@ import AddIcon from "@mui/icons-material/Add";
 import SendIcon from "@mui/icons-material/Send";
 import DescriptionIcon from "@mui/icons-material/Description";
 import { Upload } from "@mui/icons-material";
-import { Switch, FormControlLabel } from "@mui/material";
+import { Switch, FormControlLabel, CircularProgress } from "@mui/material"; // CORREGIDO: Importación de CircularProgress agregada
 import { apiClient } from "../api/axios";
-import axios from "axios"; // Requerido para abortar peticiones
+import axios from "axios"; 
 
 const MessageInput = React.forwardRef((
   {
@@ -33,7 +33,7 @@ const MessageInput = React.forwardRef((
     loaderCompFacultativoFiles,
     setLoaderCompFacultativoFiles,
     compSeconds,
-    onStopGeneration // Acción de parada de chat inyectada
+    onStopGeneration 
   },
   ref
 ) => {
@@ -51,7 +51,7 @@ const MessageInput = React.forwardRef((
   const [typeCompatibilizacion, setTypeCompatibilizacion] = useState("");
   const [isShowMofRapido, setIsShowMofRapido] = useState(false);
   
-  const abortControllerRef = useRef(null); // Abortador local para informes
+  const abortControllerRef = useRef(null); 
 
   React.useImperativeHandle(ref, () => ({
     addFilesFromGlobal: (newFiles) => setFiles((prev) => [...prev, ...newFiles]),
@@ -111,11 +111,10 @@ const MessageInput = React.forwardRef((
     if (textareaRef.current) textareaRef.current.style.height = "auto";
   };
 
-  // MANEJADOR DE DETENCIÓN DE INFORMES (Stop Button para PDF/Gotenberg)
   const handleStopReportGeneration = (e) => {
     e.stopPropagation();
     if (abortControllerRef.current) {
-      abortControllerRef.current.abort(); // Cancela la llamada en red de Axios
+      abortControllerRef.current.abort(); 
       abortControllerRef.current = null;
     }
     setLoaderCompFacultativoFiles(false);
@@ -285,6 +284,7 @@ const MessageInput = React.forwardRef((
 
   return (
     <div className="w-full relative mx-auto max-w-3xl">
+      
       <div className="flex justify-end items-center mb-2 px-2">
         {selectedAgent === "chat" && (
           <FormControlLabel
@@ -296,8 +296,7 @@ const MessageInput = React.forwardRef((
 
       <div className={`relative flex flex-col rounded-3xl transition-all duration-300 border-2 ${isDragActive || isDragOver ? "border-blue-500 bg-blue-50/50 dark:bg-blue-900/10 shadow-lg" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm"} ${error ? "border-red-400" : ""}`}>
         
-        {/* RENDERIZADO INLINE DE CHIPS DE ARCHIVOS */}
-        {(files.length > 0 || Object.values(filesAgent).some(arr => arr.length > 0)) && (
+        {files.length > 0 && (
           <div className="flex flex-wrap gap-2 p-3 border-b border-gray-100 dark:border-gray-700/50">
             {files.map((fileObj) => (
               <div key={fileObj.id} className="group relative flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-1.5 pr-8 shadow-sm max-w-[200px]">
@@ -313,7 +312,12 @@ const MessageInput = React.forwardRef((
                 </button>
               </div>
             ))}
+          </div>
+        )}
 
+        {/* Archivos de los formularios del agente */}
+        {Object.entries(filesAgent).some(([_, arr]) => arr.length > 0) && (
+          <div className="flex flex-wrap gap-2 p-3 border-b border-gray-100 dark:border-gray-700/50">
             {Object.entries(filesAgent).map(([formType, fileArray]) => 
               fileArray.map((fileObj) => (
                 <div key={fileObj.id} className="group relative flex items-center gap-2 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg p-1.5 pr-8 shadow-sm max-w-[220px]">
@@ -386,7 +390,7 @@ const MessageInput = React.forwardRef((
             </div>
           )}
 
-          {/* BOTÓN ENVIAR QUE SE CONVIERTE EN BOTÓN DE PARADA (CHATGPT STYLE) */}
+          {/* BOTÓN ENVIAR QUE SE CONVIERTE EN BOTÓN DE PARADA */}
           <button
             onClick={
               loading 
@@ -405,7 +409,6 @@ const MessageInput = React.forwardRef((
             title={loading || loaderCompFacultativoFiles ? "Detener generación" : "Enviar mensaje"}
           >
             {loading || loaderCompFacultativoFiles ? (
-              // Icono de Stop: Cuadrado rojo minimalista de ChatGPT
               <div className="w-3.5 h-3.5 bg-red-600 dark:bg-red-500 rounded-sm shadow-sm"></div>
             ) : (
               <SendIcon fontSize="small" className={message.trim() || files.length > 0 || Object.values(filesAgent).some(arr => arr.length > 0) ? "ml-1" : ""} />
