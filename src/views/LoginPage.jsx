@@ -17,7 +17,7 @@ import {
   CheckCircle,
 } from "@mui/icons-material";
 import useAppTheme from "../hooks/useAppTheme";
-import api from "../api/axios";
+import { apiClient } from "../api/axios";
 
 const LoginPage = () => {
   const [email, setEmail] = useState("");
@@ -89,7 +89,7 @@ const LoginPage = () => {
     setModalLoading(true);
 
     try {
-      const response = await api.post("/api/users/request-register", {
+      const response = await apiClient.post("/users/request-register", {
         name: regName,
         email: regEmail,
         department: regDepartment,
@@ -122,7 +122,7 @@ const LoginPage = () => {
     setModalLoading(true);
 
     try {
-      const response = await api.post("/api/users/request-reset", {
+      const response = await apiClient.post("/users/request-reset", {
         email: resetEmail,
         justification: resetJustification,
       });
