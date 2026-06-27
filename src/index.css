@@ -42,3 +42,82 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
     monospace;
 }
+
+/* ============================================================================
+   ESTILOS DE ALTO RENDIMIENTO PARA TABLAS Y TÍTULOS EN MARKDOWN (RAG OYS)
+   Esto asegura que las tablas y subtítulos del reporte legal se rendericen
+   de forma nativa y perfecta tanto en modo claro como en modo oscuro.
+   ============================================================================ */
+
+/* 1. Estilos para los encabezados de sección del reporte */
+.prose h1, .prose h2, .prose h3, .prose h4 {
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: inherit;
+}
+.prose h1 { font-size: 1.5rem; border-b: 1px solid rgba(229, 231, 235, 0.5); padding-bottom: 0.5rem; }
+.prose h2 { font-size: 1.25rem; }
+.prose h3 { font-size: 1.1rem; }
+
+/* 2. Estructura general de la Tabla */
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* 3. Encabezados de la Tabla (th) */
+.prose th {
+  background-color: #f3f4f6; /* Fondo gris claro */
+  color: #111827; /* Texto oscuro */
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 2px solid #e5e7eb; 
+  border-right: 1px solid #e5e7eb;
+}
+
+/* Encabezados en Modo Oscuro */
+.dark .prose th {
+  background-color: #1f2937; /* Fondo gris oscuro */
+  color: #f9fafb; /* Texto claro */
+  border-bottom: 2px solid #374151; 
+  border-right: 1px solid #374151;
+}
+
+/* 4. Celdas de la Tabla (td) */
+.prose td {
+  padding: 0.75rem 1rem;
+  color: #374151; 
+  border-bottom: 1px solid #f3f4f6; 
+  border-right: 1px solid #f3f4f6;
+}
+
+/* Celdas en Modo Oscuro */
+.dark .prose td {
+  color: #d1d5db; 
+  border-bottom: 1px solid #374151; 
+  border-right: 1px solid #374151;
+}
+
+/* 5. Filas Intercaladas (Zebra Striping) */
+.prose tr:nth-child(even) {
+  background-color: #f9fafb; 
+}
+
+/* Filas Intercaladas en Modo Oscuro */
+.dark .prose tr:nth-child(even) {
+  background-color: #111827; 
+}
+
+/* Limpieza de bordes extremos derechos */
+.prose th:last-child, .prose td:last-child {
+  border-right: none;
+}
