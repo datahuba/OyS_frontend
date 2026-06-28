@@ -50,16 +50,13 @@ function ChatView() {
     onDropRejected: () => setIsDragOverGlobal(false),
   });
 
-  // CONTROLADOR DE SUGERENCIAS INTERACTIVAS (ESTILO CHATGPT)
+  // CONTROLADOR DE SUGERENCIAS INTERACTIVAS (ESTILO CHATGPT - OPTIMIZADO)
   const handleSuggestionClick = async (agentKey, prefillPrompt) => {
     try {
-      // 1. Cambiar al agente adecuado usando el hook administrador de estado
+      // 1. Cambiar al agente/contexto adecuado en el chat vacío actual
       await actions.handleAgentChange(agentKey);
-      
-      // 2. Crear un nuevo chat limpio bajo la categoría de ese agente
-      await actions.handleNewChat();
 
-      // 3. Inyectar de manera segura el texto de prompt prellenado y dar foco al input de mensaje
+      // 2. Inyectar de manera segura el texto de prompt prellenado y dar foco al input de mensaje
       setTimeout(() => {
         const textarea = document.querySelector("textarea") || document.querySelector("input[type='text']");
         if (textarea) {
@@ -72,7 +69,7 @@ function ChatView() {
           // Dar foco al cuadro de texto para que el usuario edite o cargue sus archivos directamente
           textarea.focus();
         }
-      }, 350); // Tiempo óptimo para asegurar que la SPA inicialice el DOM del nuevo chat
+      }, 300); // Retraso óptimo para que se asiente el cambio de agente en el DOM
     } catch (err) {
       setters.setError("Error de redirección interactiva: " + err.toString());
     }
