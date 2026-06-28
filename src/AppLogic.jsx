@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import {
   Routes,
   Route,
@@ -19,11 +19,12 @@ import {
 import { useAuth } from "./context/AuthContext";
 
 import ProtectedRoute from "./components/ProtectedRoute";
-import Layout from "./components/Layout";
-import ChatView from "./views/ChatView";
-import ProjectInfoView from "./views/ProjectInfoView";
 import { apiClient, isTokenExpired } from "./api/axios";
-import { chatService } from "./api/chat-api";
+import { chatService } from "./services/chat.service";
+
+// Carga diferida de las vistas internas
+const ChatView = lazy(() => import("./views/ChatView.jsx"));
+const ProjectInfoView = lazy(() => import("./views/ProjectInfoView.jsx"));
 
 function AppLogic({ darkMode, toggleDarkMode }) {
   const navigate = useNavigate();
@@ -37,7 +38,6 @@ function AppLogic({ darkMode, toggleDarkMode }) {
     React.useState(false);
   const hasInitialized = React.useRef(false);
 
-  // Verify token on component mount
   React.useEffect(() => {
     const checkToken = () => {
       try {
@@ -52,13 +52,12 @@ function AppLogic({ darkMode, toggleDarkMode }) {
           }
         }
       } catch (error) {
-        console.error("Error checking token:", error);
+        console.error("Error comprobando el token:", error);
       }
     };
     checkToken();
   }, [location.pathname, logout, navigate]);
 
-  // Listen for token expired event
   React.useEffect(() => {
     const handleTokenExpired = () => {
       if (location.pathname === "/" || location.pathname === "/login") {
@@ -90,7 +89,7 @@ function AppLogic({ darkMode, toggleDarkMode }) {
       navigate(`/chat/${data._id}`);
     } catch (err) {
       if (err.tokenExpired) return;
-      setError("Could not create a new chat.");
+      setError("No se pudo crear un nuevo chat.");
     }
   }, [navigate]);
 
@@ -100,7 +99,7 @@ function AppLogic({ darkMode, toggleDarkMode }) {
       return;
     }
 
-    if (user.role === "admin") {
+    if (user.role === "admin" || user.role === "superadmin") {
       navigate("/users", { replace: true });
       setLoading(false);
       return;
@@ -123,7 +122,7 @@ function AppLogic({ darkMode, toggleDarkMode }) {
         hasInitialized.current = true;
       } catch (err) {
         if (err.tokenExpired) return;
-        setError("Could not load chats.");
+        setError("No se pudieron cargar los chats.");
       } finally {
         setLoading(false);
       }
@@ -163,17 +162,9 @@ function AppLogic({ darkMode, toggleDarkMode }) {
     );
   };
 
-  // While loading, or if the user is an admin who will be redirected, show a loader.
-  if (loading || (user && user.role === "admin")) {
+  if (loading || (user && (user.role === "admin" || user.role === "superadmin"))) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-        }}
-      >
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
         <CircularProgress />
       </Box>
     );
@@ -182,60 +173,27 @@ function AppLogic({ darkMode, toggleDarkMode }) {
   return (
     <>
       <Dialog open={showTokenExpiredDialog} onClose={handleTokenExpiredClose}>
-        <DialogTitle>Session Expired</DialogTitle>
+        <DialogTitle>Sesión Expirada</DialogTitle>
         <DialogContent>
-          <Typography>
-            Your session has expired. Please log in again to continue.
-          </Typography>
+          <Typography>Su sesión ha expirado. Por favor inicie sesión nuevamente para continuar.</Typography>
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={handleTokenExpiredClose}
-            color="primary"
-            variant="contained"
-          >
-            Go to Login
+          <Button onClick={handleTokenExpiredClose} color="primary" variant="contained">
+            Ir al Login
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Routes>
-        {/* User-specific routes with layout */}
-        <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
-          {/* <Route
-            element={
-              <Layout
-                allChats={allChats}
-                handleNewChat={handleNewChat}
-                handleDeleteChat={handleDeleteChat}
-                darkMode={darkMode}
-                toggleDarkMode={toggleDarkMode}
-              />
-            }
-          > */}
-          <Route
-            index
-            element={
-              allChats.length > 0 && user.role === "user" ? (
-                <Navigate to={`/chat/${allChats[0]._id}`} replace />
-              ) : null
-            }
-          />
-          <Route
-            path="chat/:chatId"
-            element={
-              <ChatView
-                onChatUpdate={handleChatUpdate}
-                setActiveChatId={setActiveChatId}
-              />
-            }
-          />
-          <Route path="info" element={<ProjectInfoView />} />
-          {/* </Route> */}
-        </Route>
-        {/* Fallback route for any other case */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#111827' }}><CircularProgress size={50} sx={{ color: '#3b82f6' }} /></Box>}>
+        <Routes>
+          <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
+            <Route index element={allChats.length > 0 && user.role === "user" ? (<Navigate to={`/chat/${allChats[0]._id}`} replace />) : null} />
+            <Route path="chat/:chatId" element={<ChatView onChatUpdate={handleChatUpdate} setActiveChatId={setActiveChatId} />} />
+            <Route path="info" element={<ProjectInfoView />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </>
   );
 }
