@@ -50,12 +50,13 @@ const ProcessingSimulator = () => {
 export const MessageList = ({ conversation, loading, onCopy, userName = "Usuario", onSuggestionClick }) => {
   const messagesEndRef = useRef(null);
 
-  // Definición de sugerencias institucionales con sus respectivos mapeos de agente
+  // Definición de sugerencias institucionales con sus respectivos mapeos de agente y prompts
   const suggestions = [
     {
       title: "Compatibilización de Cargos",
       description: "Audita y compara estructuras de puestos, reglamentos y manuales de funciones en busca de duplicidades.",
-      agent: "compatibilizacion",
+      prompt: "Quiero iniciar un análisis de compatibilidad de puestos. (Carga tus archivos Word o PDF utilizando el botón de adjuntar para iniciar la auditoría).",
+      agent: "compatibilidad",
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -65,6 +66,7 @@ export const MessageList = ({ conversation, loading, onCopy, userName = "Usuario
     {
       title: "Consultar Estatutos UAGRM",
       description: "Busca de forma semántica reglamentos, estatutos orgánicos y resoluciones del ICU de la universidad.",
+      prompt: "Requiero consultar en las normativas vigentes sobre el siguiente tema: ",
       agent: "normativas",
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -75,7 +77,8 @@ export const MessageList = ({ conversation, loading, onCopy, userName = "Usuario
     {
       title: "Auditoría de Procesos",
       description: "Analiza flujos de trabajo organizacionales y detecta cuellos de botella administrativos.",
-      agent: "mof",
+      prompt: "Quiero auditar un flujo de trabajo administrativo para evaluar optimización de tiempos y duplicidad de funciones.",
+      agent: "auditoria",
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -85,7 +88,8 @@ export const MessageList = ({ conversation, loading, onCopy, userName = "Usuario
     {
       title: "Asistente General OyS",
       description: "Preguntas generales sobre diseño de organigramas y lineamientos estructurales del departamento.",
-      agent: "chat",
+      prompt: "Hola, requiero asistencia general para estructurar las responsabilidades y diseño del organigrama de una nueva unidad administrativa.",
+      agent: "general",
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -114,14 +118,14 @@ export const MessageList = ({ conversation, loading, onCopy, userName = "Usuario
           ¿En qué puedo ayudarte hoy, {userName}?
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mb-10 leading-relaxed">
-          Selecciona una sugerencia interactiva. El asistente conmutará el agente correspondiente en el panel superior de forma inmediata.
+          Selecciona una sugerencia interactiva. El asistente cargará el agente correspondiente y dejará el prompt listo para que agregues tus archivos o personalices tu consulta.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl w-full">
           {suggestions.map((s, idx) => (
             <button
               key={idx}
-              onClick={() => onSuggestionClick && onSuggestionClick(s.agent)}
+              onClick={() => onSuggestionClick && onSuggestionClick(s.agent, s.prompt)}
               className="flex flex-col text-left p-4 rounded-2xl border border-light-border/20 dark:border-dark-border/20 bg-white dark:bg-gray-800/40 hover:bg-light-secondary/5 dark:hover:bg-dark-secondary/5 hover:border-light-secondary/40 dark:hover:border-dark-secondary/40 transition-all duration-300 transform hover:-translate-y-0.5 group shadow-sm active:scale-95"
             >
               <div className="flex items-center gap-2 mb-1.5">
