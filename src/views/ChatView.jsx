@@ -50,6 +50,34 @@ function ChatView() {
     onDropRejected: () => setIsDragOverGlobal(false),
   });
 
+  // CONTROLADOR DE SUGERENCIAS INTERACTIVAS (ESTILO CHATGPT)
+  const handleSuggestionClick = async (agentKey, prefillPrompt) => {
+    try {
+      // 1. Cambiar al agente adecuado usando el hook administrador de estado
+      await actions.handleAgentChange(agentKey);
+      
+      // 2. Crear un nuevo chat limpio bajo la categoría de ese agente
+      await actions.handleNewChat();
+
+      // 3. Inyectar de manera segura el texto de prompt prellenado y dar foco al input de mensaje
+      setTimeout(() => {
+        const textarea = document.querySelector("textarea") || document.querySelector("input[type='text']");
+        if (textarea) {
+          textarea.value = prefillPrompt;
+          
+          // Desencadenar el evento de entrada nativo para sincronizar el estado controlado de React
+          const event = new Event('input', { bubbles: true });
+          textarea.dispatchEvent(event);
+          
+          // Dar foco al cuadro de texto para que el usuario edite o cargue sus archivos directamente
+          textarea.focus();
+        }
+      }, 350); // Tiempo óptimo para asegurar que la SPA inicialice el DOM del nuevo chat
+    } catch (err) {
+      setters.setError("Error de redirección interactiva: " + err.toString());
+    }
+  };
+
   return (
     <div {...getRootProps()} className="h-screen w-full overflow-hidden bg-light-bg dark:bg-dark-bg relative">
       <input {...getInputProps()} />
@@ -91,8 +119,8 @@ function ChatView() {
           <div className="relative h-full flex-1 overflow-hidden">
             <div className="flex h-full w-full flex-col">
               
-              {/* HEADER UNIFICADO */}
-              <div className="flex w-full items-center justify-between bg-light-bg px-6 py-3 border-b border-light-border/20 dark:border-dark-border/10 h-14 flex-shrink-0">
+              {/* HEADER UNIFICADO (SOLUCIONADA LA FILTRACIÓN VISUAL CON dark:bg-dark-bg) */}
+              <div className="flex w-full items-center justify-between bg-light-bg dark:bg-dark-bg px-6 py-3 border-b border-light-border/20 dark:border-dark-border/10 h-14 flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <button
                     onClick={toggleChatSidebar}
@@ -130,6 +158,8 @@ function ChatView() {
                     <MessageList
                       conversation={state.currentChat?.messages}
                       loading={state.loadingSendMessage} 
+                      userName={user?.name || "Usuario"}
+                      onSuggestionClick={handleSuggestionClick}
                     />
                   )}
                 </div>
