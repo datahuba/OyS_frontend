@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   UploadFile,
   Delete,
@@ -9,8 +9,8 @@ import {
   PictureAsPdf,
   ArrowLeft,
   Autorenew,
+  Cancel,
 } from "@mui/icons-material";
-import documentService from "../services/document.service";
 import { ModalConfirm } from "../components/Modals";
 import { alert } from "../utils/alert"; // Assuming this exists based on Modals.jsx usage
 import { useNavigate } from "react-router-dom";
@@ -30,11 +30,15 @@ export default function DocumentManager() {
   const { user, logout } = useAuth();
   const { theme, darkMode, toggleDarkMode } = useAppTheme();
 
-  // Estados para el flujo de reemplazo exclusivo (ISSUE #OYS-063)
+  // Estados de preparación y carga asíncrona (ISSUE #OYS-063)
+  const [pendingFiles, setPendingFiles] = useState([]);
   const [isReplaceActive, setIsReplaceActive] = useState(false);
   const [replaceId, setReplaceId] = useState("");
   const [uploadStatus, setUploadStatus] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
+
+  // Referencia para la cancelación activa del request de red
+  const abortControllerRef = useRef(null);
 
   // Modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -43,14 +47,15 @@ export default function DocumentManager() {
   // Validación rápida de identidad de desarrollo
   const isDeveloper = user?.email === "admin@datahuba.com";
 
+  // CORREGIDO: Llamada al endpoint explícito con prefijo '/api' para recuperar normativas de la base de datos
   const fetchDocuments = useCallback(async () => {
     try {
       setIsLoading(true);
-      const docs = await documentService.getAllDocuments();
-      setDocuments(docs);
+      const { data } = await apiClient.get("/api/documents");
+      setDocuments(data);
     } catch (error) {
       console.error("Error fetching documents:", error);
-      alert("error", "Error al cargar los documentos");
+      alert("error", "Error al cargar la lista de documentos.");
     } finally {
       setIsLoading(false);
     }
@@ -66,12 +71,14 @@ export default function DocumentManager() {
     setUploadStatus("");
     setUploadProgress(0);
     setUploading(false);
+    setPendingFiles([]);
+    abortControllerRef.current = null;
   };
 
-  const handleFiles = async (files) => {
+  const handleFileSelection = (files) => {
     if (!files || files.length === 0) return;
 
-    const formData = new FormData();
+    const validFiles = [];
     const validTypes = [
       "application/pdf",
       "image/jpeg",
@@ -87,7 +94,6 @@ export default function DocumentManager() {
     ];
 
     const maxSize = 100 * 1024 * 1024; // 100MB
-    let hasValidFiles = false;
 
     Array.from(files).forEach((file) => {
       if (file.size > maxSize) {
@@ -112,28 +118,40 @@ export default function DocumentManager() {
           ".pptx",
         ];
         if (!validExtensions.includes(ext)) {
-          alert("error", `El archivo ${file.name} no tiene un formato válido.`);
+          alert("error", `El archivo ${file.name} no tiene un formato de documento soportado.`);
           return;
         }
       }
 
-      formData.append("documents", file);
-      hasValidFiles = true;
+      validFiles.push(file);
     });
 
-    if (!hasValidFiles) return;
+    if (validFiles.length > 0) {
+      setPendingFiles((prev) => [...prev, ...validFiles]);
+    }
+  };
 
-    // Si la opción de reemplazo está activa, inyectar el ID de destino en el cuerpo
+  const handleStartUpload = async () => {
+    if (pendingFiles.length === 0) return;
+
+    const formData = new FormData();
+    pendingFiles.forEach((file) => {
+      formData.append("documents", file);
+    });
+
     if (isReplaceActive && replaceId) {
       formData.append("replaceId", replaceId);
     }
+
+    // Inicializar controlador para posibilitar parada de emergencia
+    abortControllerRef.current = new AbortController();
 
     try {
       setUploading(true);
       setUploadProgress(5);
       setUploadStatus("Iniciando transferencia de archivos...");
 
-      // Simulación de estados interactivos para la barra de progreso basándose en respuestas del servidor
+      // Simulación de estados para la barra de progreso
       const progressTimer = setInterval(() => {
         setUploadProgress((prev) => {
           if (prev < 40) {
@@ -156,15 +174,16 @@ export default function DocumentManager() {
       const config = {
         headers: {
           "Content-Type": "multipart/form-data"
-        }
+        },
+        signal: abortControllerRef.current.signal // Inyección del token de cancelación
       };
 
-      // Invocación a la API mediante Axios unificado
-      await apiClient.post("/documents/upload", formData, config);
+      // CORREGIDO: Endpoint con prefijo '/api' explícito
+      await apiClient.post("/api/documents/upload", formData, config);
       
       clearInterval(progressTimer);
       setUploadProgress(100);
-      setUploadStatus("Sincronización de Qdrant finalizada con éxito.");
+      setUploadStatus("Sincronización de Qdrant finalizada.");
 
       setTimeout(() => {
         alert("success", "Base de conocimientos sincronizada correctamente en Qdrant.");
@@ -173,10 +192,22 @@ export default function DocumentManager() {
       }, 1000);
 
     } catch (error) {
+      if (error.name === "CanceledError" || error.code === "ERR_CANCELED") {
+        return; // La cancelación fue gestionada de forma controlada por handleCancelUpload
+      }
       console.error("Error uploading documents:", error);
-      alert("error", error.response?.data?.message || "Error al subir los archivos");
+      alert("error", error.response?.data?.message || "Error al subir e ingestar los archivos.");
       resetUploadStates();
     }
+  };
+
+  // BOTÓN DE PARADA DE EMERGENCIA ACTIVO (Cancela inmediatamente la petición HTTP en tránsito)
+  const handleCancelUpload = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    resetUploadStates();
+    alert("info", "Carga e ingesta de vectores abortada por el usuario.");
   };
 
   const handleDrop = (e) => {
@@ -185,7 +216,7 @@ export default function DocumentManager() {
     setDragActive(false);
 
     if (isDeveloper && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFiles(e.dataTransfer.files);
+      handleFileSelection(e.dataTransfer.files);
     }
   };
 
@@ -204,7 +235,7 @@ export default function DocumentManager() {
   const handleChange = (e) => {
     e.preventDefault();
     if (isDeveloper && e.target.files && e.target.files.length > 0) {
-      handleFiles(e.target.files);
+      handleFileSelection(e.target.files);
     }
   };
 
@@ -218,12 +249,13 @@ export default function DocumentManager() {
 
     try {
       setDeleting(true);
-      await documentService.deleteDocument(docToDelete._id);
-      alert("success", "Documento eliminado correctamente");
+      // CORREGIDO: Ruta con prefijo '/api' explícito para el DELETE de normativas
+      await apiClient.delete(`/api/documents/${docToDelete._id}`);
+      alert("success", "Documento y vectores asociados eliminados correctamente de Qdrant.");
       setDocuments((prev) => prev.filter((d) => d._id !== docToDelete._id));
     } catch (error) {
       console.error("Error deleting document:", error);
-      alert("error", "Error al eliminar el documento");
+      alert("error", error.response?.data?.message || "Error al eliminar el documento.");
     } finally {
       setDeleteModalOpen(false);
       setDocToDelete(null);
@@ -283,7 +315,15 @@ export default function DocumentManager() {
             </button>
           </div>
 
-          {/* MENÚ DE REEMPLAZO EXCLUSIVO (Solo visible para la cuenta de desarrollo admin@datahuba.com) */}
+          {/* EXPLICATIVO DE ESTRUCTURA DOCUMENTAL DE "LA GABI" */}
+          <div className="mb-6 p-5 bg-gray-50/50 dark:bg-gray-900/30 border border-light-border dark:border-dark-border rounded-2xl">
+            <h3 className="text-sm font-bold text-light-primary dark:text-dark-primary mb-1">Estructura Documental del RAG</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+              El sistema se alimenta de dos orígenes vectoriales: **Vectores del Chat (Privados)** que cada usuario sube a nivel individual dentro de un chat específico (colección `chat-rag` de 768d), y **Documentos Globales (Normativas)** que indexan el marco legal de la universidad (colección `rag-normativas-uagrm` de 3072d). Las 314 normativas iniciales de la UAGRM se encuentran cargadas directamente en Qdrant como parte de la memoria semántica de la IA.
+            </p>
+          </div>
+
+          {/* MENÚ DE REEMPLAZO EXCLUSIVO (Solo visible para el perfil de desarrollo admin@datahuba.com) */}
           {isDeveloper && (
             <div className="mb-6 bg-white dark:bg-gray-900 border border-light-border dark:border-dark-border rounded-2xl p-5 shadow-sm transition-colors duration-200">
               <div className="flex items-center gap-3">
@@ -301,14 +341,14 @@ export default function DocumentManager() {
                   htmlFor="replace-active-checkbox"
                   className="text-sm font-semibold text-light-primary dark:text-dark-primary cursor-pointer select-none"
                 >
-                  ¿Deseas reemplazar una normativa existente? (Eliminará versiones previas de Qdrant)
+                  ¿Deseas reemplazar una normativa existente? (Sustituirá las versiones previas en Qdrant)
                 </label>
               </div>
 
               {isReplaceActive && (
                 <div className="mt-4 space-y-2 animate-in slide-in-from-top-1 duration-200">
                   <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400">
-                    Seleccione la normativa activa de "La Gabi" que desea sustituir por el nuevo archivo:
+                    Seleccione la normativa que desea sustituir:
                   </label>
                   <select
                     value={replaceId}
@@ -328,9 +368,9 @@ export default function DocumentManager() {
             </div>
           )}
 
-          {/* BARRA DE PROGRESO DE INGESTA VECTORES (Doble capa de retroalimentación en tiempo real) */}
+          {/* BARRA DE PROGRESO DE INGESTA VECTORES CON BOTÓN DE STOP */}
           {uploading && (
-            <div className="mb-8 p-6 bg-white dark:bg-gray-900 border border-light-border dark:border-dark-border rounded-2xl shadow-lg transition-all">
+            <div className="mb-8 p-6 bg-white dark:bg-gray-900 border border-light-border dark:border-dark-border rounded-2xl shadow-lg transition-all animate-pulse">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-sm font-semibold text-light-secondary dark:text-dark-secondary animate-pulse flex items-center gap-2">
                   <Autorenew className="animate-spin text-sm" />
@@ -338,11 +378,52 @@ export default function DocumentManager() {
                 </span>
                 <span className="text-xs font-bold text-gray-500">{Math.round(uploadProgress)}%</span>
               </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-800 h-2.5 rounded-full overflow-hidden">
+              <div className="w-full bg-gray-200 dark:bg-gray-800 h-2.5 rounded-full overflow-hidden mb-4">
                 <div
                   className="bg-light-secondary dark:bg-dark-secondary h-full rounded-full transition-all duration-300"
                   style={{ width: `${uploadProgress}%` }}
                 ></div>
+              </div>
+              <button
+                onClick={handleCancelUpload}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-semibold transition-colors w-fit ml-auto cursor-pointer"
+              >
+                <Cancel className="w-4 h-4" />
+                Detener Ingesta (Parada de Emergencia)
+              </button>
+            </div>
+          )}
+
+          {/* ÁREA DE PREPARACIÓN DE ARCHIVOS (Evita la carga automática inmediata) */}
+          {pendingFiles.length > 0 && !uploading && (
+            <div className="mb-8 p-6 bg-white dark:bg-gray-900 border border-light-border dark:border-dark-border rounded-2xl shadow-md animate-in slide-in-from-top-1 duration-300">
+              <h3 className="text-sm font-bold text-light-primary dark:text-dark-primary mb-3">
+                Archivos seleccionados listos para ingestar ({pendingFiles.length})
+              </h3>
+              <ul className="space-y-2 mb-5">
+                {pendingFiles.map((file, idx) => (
+                  <li
+                    key={idx}
+                    className="flex items-center justify-between text-xs text-light-primary dark:text-dark-primary bg-light-bg_h dark:bg-dark-bg_h p-3 rounded-xl border border-light-border/10"
+                  >
+                    <span className="truncate font-semibold max-w-[70%]">{file.name}</span>
+                    <span className="font-mono text-gray-500">{formatSize(file.size)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setPendingFiles([])}
+                  className="flex-1 py-3 border border-gray-300 dark:border-gray-700 rounded-xl text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleStartUpload}
+                  className="flex-1 py-3 bg-light-secondary dark:bg-dark-secondary hover:bg-light-secondary_h dark:hover:bg-dark-secondary_h text-white rounded-xl text-xs font-bold transition-all transform hover:scale-[1.01]"
+                >
+                  {isReplaceActive ? "Reemplazar e Iniciar Ingesta" : "Iniciar Ingesta de Vectores"}
+                </button>
               </div>
             </div>
           )}
@@ -381,9 +462,7 @@ export default function DocumentManager() {
                   }`}
                 />
                 <p className="text-xl font-semibold text-light-primary dark:text-dark-primary mb-2">
-                  {uploading
-                    ? "Iniciando ingesta vectorial..."
-                    : "Arrastra archivos aquí o haz clic para seleccionar"}
+                  Arrastra archivos aquí o haz clic para seleccionar
                 </p>
                 <p className="text-sm text-light-primary_h dark:text-dark-primary_h">
                   PDF, Imágenes, Excel, Word, CSV, PowerPoint (Máx. 100MB)
@@ -391,7 +470,7 @@ export default function DocumentManager() {
               </label>
             </div>
           ) : (
-            <div className="mb-8 p-6 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded-2xl flex items-start gap-4">
+            <div className="mb-8 p-6 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:bg-blue-900/20 rounded-2xl flex items-start gap-4">
               <UploadFile className="text-blue-500 flex-shrink-0 w-6 h-6" />
               <div>
                 <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300">Canal de Consulta de Base de Conocimiento</h3>
