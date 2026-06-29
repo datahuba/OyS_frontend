@@ -37,6 +37,11 @@ export default function DocumentManager() {
   const [uploadStatus, setUploadStatus] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
 
+  // Estados para el buscador de documentos inteligente (Autocomplete)
+  const [selectSearchText, setSelectSearchText] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const autocompleteRef = useRef(null);
+
   // Referencia para la cancelación activa del request de red
   const abortControllerRef = useRef(null);
 
@@ -47,7 +52,7 @@ export default function DocumentManager() {
   // Validación rápida de identidad de desarrollo
   const isDeveloper = user?.email === "admin@datahuba.com";
 
-  // CORREGIDO: Llamada al enrutador de Axios utilizando la ruta relativa nominal
+  // Llamada al enrutador de Axios utilizando la ruta relativa nominal
   const fetchDocuments = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -65,9 +70,22 @@ export default function DocumentManager() {
     fetchDocuments();
   }, [fetchDocuments]);
 
+  // Detector de clics externos para cerrar la lista desplegable de búsqueda
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (autocompleteRef.current && !autocompleteRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const resetUploadStates = () => {
     setIsReplaceActive(false);
     setReplaceId("");
+    setSelectSearchText("");
+    setDropdownOpen(false);
     setUploadStatus("");
     setUploadProgress(0);
     setUploading(false);
@@ -178,7 +196,7 @@ export default function DocumentManager() {
         signal: abortControllerRef.current.signal // Inyección del token de cancelación
       };
 
-      // CORREGIDO: Ruta relativa nominal administrada de forma nativa por Axios
+      // Ruta relativa nominal administrada de forma nativa por Axios
       await apiClient.post("/documents/upload", formData, config);
       
       clearInterval(progressTimer);
@@ -249,7 +267,7 @@ export default function DocumentManager() {
 
     try {
       setDeleting(true);
-      // CORREGIDO: Ruta con prefijo '/api' implícito manejado por Axios de forma segura
+      // Ruta con prefijo '/api' implícito manejado por Axios de forma segura
       await apiClient.delete(`/documents/${docToDelete._id}`);
       alert("success", "Documento y vectores asociados eliminados correctamente de Qdrant.");
       setDocuments((prev) => prev.filter((d) => d._id !== docToDelete._id));
@@ -289,6 +307,11 @@ export default function DocumentManager() {
     navigate("/login");
   };
 
+  // Filtrado de documentos de la base de datos basándose en el texto ingresado en el buscador
+  const filteredSearchDocs = documents.filter((d) =>
+    d.originalName.toLowerCase().includes(selectSearchText.toLowerCase())
+  );
+
   return (
     <div className="min-h-dvh bg-light-bg dark:bg-dark-bg p-8 transition-colors duration-300">
       <div className="flex flex-col items-center fixed top-5 right-5 z-50">
@@ -323,7 +346,7 @@ export default function DocumentManager() {
             </p>
           </div>
 
-          {/* MENÚ DE REEMPLAZO EXCLUSIVO (Solo visible para el perfil de desarrollo admin@datahuba.com) */}
+          {/* BUSCADOR DE REEMPLAZO INTELIGENTE (AUTOCOMPLETE - Exclusivo para el perfil admin@datahuba.com) */}
           {isDeveloper && (
             <div className="mb-6 bg-white dark:bg-gray-900 border border-light-border dark:border-dark-border rounded-2xl p-5 shadow-sm transition-colors duration-200">
               <div className="flex items-center gap-3">
@@ -333,7 +356,10 @@ export default function DocumentManager() {
                   checked={isReplaceActive}
                   onChange={(e) => {
                     setIsReplaceActive(e.target.checked);
-                    if (!e.target.checked) setReplaceId("");
+                    if (!e.target.checked) {
+                      setReplaceId("");
+                      setSelectSearchText("");
+                    }
                   }}
                   className="w-4 h-4 text-light-secondary dark:text-dark-secondary border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded focus:ring-light-secondary focus:ring-2 cursor-pointer"
                 />
@@ -346,23 +372,74 @@ export default function DocumentManager() {
               </div>
 
               {isReplaceActive && (
-                <div className="mt-4 space-y-2 animate-in slide-in-from-top-1 duration-200">
+                <div className="mt-4 space-y-2 animate-in slide-in-from-top-1 duration-200 relative" ref={autocompleteRef}>
                   <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400">
-                    Seleccione la normativa que desea sustituir:
+                    Escribe para buscar y selecciona la normativa activa de "La Gabi" que deseas sustituir:
                   </label>
-                  <select
-                    value={replaceId}
-                    onChange={(e) => setReplaceId(e.target.value)}
-                    required={isReplaceActive}
-                    className="block w-full max-w-md px-4 py-3 border border-light-border dark:border-dark-border/20 bg-light-bg dark:bg-dark-bg rounded-xl text-sm text-light-primary dark:text-dark-primary focus:outline-none focus:ring-2 focus:ring-light-secondary transition-colors"
-                  >
-                    <option value="">-- Seleccionar documento --</option>
-                    {documents.map((d) => (
-                      <option key={d._id} value={d._id}>
-                        {d.isStatic ? `(Sistema) ${d.originalName}` : d.originalName} {d.size > 0 ? `(${formatSize(d.size)})` : ""}
-                      </option>
-                    ))}
-                  </select>
+                  
+                  <div className="relative max-w-md">
+                    <input
+                      type="text"
+                      value={selectSearchText}
+                      onChange={(e) => {
+                        setSelectSearchText(e.target.value);
+                        setDropdownOpen(true);
+                        if (!e.target.value) {
+                          setReplaceId("");
+                        }
+                      }}
+                      onFocus={() => setIsOpen(true)}
+                      className="block w-full px-4 py-3 border border-light-border dark:border-dark-border/20 bg-light-bg dark:bg-dark-bg rounded-xl text-sm text-light-primary dark:text-dark-primary focus:outline-none focus:ring-2 focus:ring-light-secondary transition-colors"
+                      placeholder="Escribe el nombre de la normativa... (Ej. RESOA, Estatuto)"
+                    />
+                    {replaceId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReplaceId("");
+                          setSelectSearchText("");
+                        }}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-red-500 hover:underline font-bold"
+                      >
+                        Limpiar
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Resultados filtrados del buscador con scroll dinámico */}
+                  {dropdownOpen && selectSearchText && (
+                    <div className="absolute left-0 mt-1 w-full max-w-md bg-white dark:bg-gray-800 border border-light-border dark:border-dark-border rounded-xl shadow-2xl max-h-60 overflow-y-auto z-50 divide-y divide-light-border/10 dark:divide-dark-border/10">
+                      {filteredSearchDocs.length === 0 ? (
+                        <div className="p-4 text-xs text-gray-500 dark:text-gray-400 text-center">
+                          No se encontraron normativas coincidentes
+                        </div>
+                      ) : (
+                        filteredSearchDocs.map((d) => (
+                          <button
+                            type="button"
+                            key={d._id}
+                            onClick={() => {
+                              setReplaceId(d._id);
+                              setSelectSearchText(d.originalName);
+                              setDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-700/50 flex flex-col gap-0.5 transition-colors ${
+                              replaceId === d._id ? "bg-light-secondary/5 dark:bg-dark-secondary/5 border-l-4 border-light-secondary font-semibold" : ""
+                            }`}
+                          >
+                            <span className="text-sm text-light-primary dark:text-dark-primary truncate">
+                              {d.isStatic ? `(Sistema) ${d.originalName}` : d.originalName}
+                            </span>
+                            {d.size > 0 && (
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                                Tamaño: {formatSize(d.size)}
+                              </span>
+                            )}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -462,9 +539,7 @@ export default function DocumentManager() {
                   }`}
                 />
                 <p className="text-xl font-semibold text-light-primary dark:text-dark-primary mb-2">
-                  {uploading
-                    ? "Iniciando ingesta vectorial..."
-                    : "Arrastra archivos aquí o haz clic para seleccionar"}
+                  Arrastra archivos aquí o haz clic para seleccionar
                 </p>
                 <p className="text-sm text-light-primary_h dark:text-dark-primary_h">
                   PDF, Imágenes, Excel, Word, CSV, PowerPoint (Máx. 100MB)
@@ -472,7 +547,7 @@ export default function DocumentManager() {
               </label>
             </div>
           ) : (
-            <div className="mb-8 p-6 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded-2xl flex items-start gap-4">
+            <div className="mb-8 p-6 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:bg-blue-900/20 rounded-2xl flex items-start gap-4">
               <UploadFile className="text-blue-500 flex-shrink-0 w-6 h-6" />
               <div>
                 <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300">Canal de Consulta de Base de Conocimiento</h3>
