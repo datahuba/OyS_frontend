@@ -8,6 +8,7 @@ import {
   Image,
   PictureAsPdf,
   ArrowLeft,
+  Autorenew,
 } from "@mui/icons-material";
 import documentService from "../services/document.service";
 import { ModalConfirm } from "../components/Modals";
@@ -17,6 +18,7 @@ import DocumentSkeleton from "../components/skeletons/DocumentSkeleton";
 import UserProfile from "../components/UserProfile";
 import { useAuth } from "../context/AuthContext";
 import useAppTheme from "../hooks/useAppTheme";
+import { apiClient } from "../api/axios";
 
 export default function DocumentManager() {
   const [documents, setDocuments] = useState([]);
@@ -28,9 +30,18 @@ export default function DocumentManager() {
   const { user, logout } = useAuth();
   const { theme, darkMode, toggleDarkMode } = useAppTheme();
 
+  // Estados para el flujo de reemplazo exclusivo (ISSUE #OYS-063)
+  const [isReplaceActive, setIsReplaceActive] = useState(false);
+  const [replaceId, setReplaceId] = useState("");
+  const [uploadStatus, setUploadStatus] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
+
   // Modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState(null);
+
+  // Validación rápida de identidad de desarrollo
+  const isDeveloper = user?.email === "admin@datahuba.com";
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -48,6 +59,14 @@ export default function DocumentManager() {
   useEffect(() => {
     fetchDocuments();
   }, [fetchDocuments]);
+
+  const resetUploadStates = () => {
+    setIsReplaceActive(false);
+    setReplaceId("");
+    setUploadStatus("");
+    setUploadProgress(0);
+    setUploading(false);
+  };
 
   const handleFiles = async (files) => {
     if (!files || files.length === 0) return;
@@ -68,19 +87,15 @@ export default function DocumentManager() {
     ];
 
     const maxSize = 100 * 1024 * 1024; // 100MB
-
     let hasValidFiles = false;
 
     Array.from(files).forEach((file) => {
-      // Basic validation
       if (file.size > maxSize) {
         alert("error", `El archivo ${file.name} excede el límite de 100MB.`);
         return;
       }
 
-      // Validate file type
       if (!validTypes.includes(file.type) && file.type !== "") {
-        // Check extension as fallback
         const ext = "." + file.name.split(".").pop().toLowerCase();
         const validExtensions = [
           ".pdf",
@@ -108,16 +123,59 @@ export default function DocumentManager() {
 
     if (!hasValidFiles) return;
 
+    // Si la opción de reemplazo está activa, inyectar el ID de destino en el cuerpo
+    if (isReplaceActive && replaceId) {
+      formData.append("replaceId", replaceId);
+    }
+
     try {
       setUploading(true);
-      await documentService.uploadDocuments(formData);
-      alert("success", "Archivos subidos correctamente");
-      fetchDocuments();
+      setUploadProgress(5);
+      setUploadStatus("Iniciando transferencia de archivos...");
+
+      // Simulación de estados interactivos para la barra de progreso basándose en respuestas del servidor
+      const progressTimer = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev < 40) {
+            setUploadStatus("Subiendo archivo de normativa al VPS...");
+            return prev + 5;
+          } else if (prev < 65) {
+            setUploadStatus("Gotenberg: Extrayendo texto plano y analizando formato...");
+            return prev + 2;
+          } else if (prev < 85) {
+            setUploadStatus("Gemini API: Generando embeddings semánticos (3072d)...");
+            return prev + 1.2;
+          } else if (prev < 98) {
+            setUploadStatus("Qdrant: Indexando y sincronizando base vectorial...");
+            return prev + 0.4;
+          }
+          return prev;
+        });
+      }, 700);
+
+      const config = {
+        headers: {
+          "Content-Type": "multipart/form-data"
+        }
+      };
+
+      // Invocación a la API mediante Axios unificado
+      await apiClient.post("/documents/upload", formData, config);
+      
+      clearInterval(progressTimer);
+      setUploadProgress(100);
+      setUploadStatus("Sincronización de Qdrant finalizada con éxito.");
+
+      setTimeout(() => {
+        alert("success", "Base de conocimientos sincronizada correctamente en Qdrant.");
+        resetUploadStates();
+        fetchDocuments();
+      }, 1000);
+
     } catch (error) {
       console.error("Error uploading documents:", error);
-      alert("error", error.message || "Error al subir los archivos");
-    } finally {
-      setUploading(false);
+      alert("error", error.response?.data?.message || "Error al subir los archivos");
+      resetUploadStates();
     }
   };
 
@@ -126,7 +184,7 @@ export default function DocumentManager() {
     e.stopPropagation();
     setDragActive(false);
 
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (isDeveloper && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFiles(e.dataTransfer.files);
     }
   };
@@ -134,16 +192,18 @@ export default function DocumentManager() {
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
+    if (isDeveloper) {
+      if (e.type === "dragenter" || e.type === "dragover") {
+        setDragActive(true);
+      } else if (e.type === "dragleave") {
+        setDragActive(false);
+      }
     }
   };
 
   const handleChange = (e) => {
     e.preventDefault();
-    if (e.target.files && e.target.files.length > 0) {
+    if (isDeveloper && e.target.files && e.target.files.length > 0) {
       handleFiles(e.target.files);
     }
   };
@@ -176,16 +236,16 @@ export default function DocumentManager() {
     if (["jpg", "jpeg", "png", "gif", "svg"].includes(ext))
       return <Image className="w-8 h-8 text-light-accent" />;
     if (ext === "pdf")
-      return <PictureAsPdf className="w-8 h-8 text-light-danger" />;
+      return <PictureAsPdf className="w-8 h-8 text-red-500" />;
     if (["xls", "xlsx", "csv"].includes(ext))
-      return <Description className="w-8 h-8 text-light-success" />;
+      return <Description className="w-8 h-8 text-green-500" />;
     if (["doc", "docx"].includes(ext))
-      return <Description className="w-8 h-8 text-light-secondary" />;
-    return <InsertDriveFile className="w-8 h-8 text-light-primary" />;
+      return <Description className="w-8 h-8 text-blue-500" />;
+    return <InsertDriveFile className="w-8 h-8 text-gray-500" />;
   };
 
   const formatSize = (bytes) => {
-    if (bytes === 0) return "0 Bytes";
+    if (!bytes || bytes === 0) return "0 Bytes";
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -198,7 +258,7 @@ export default function DocumentManager() {
   };
 
   return (
-    <div className="min-h-dvh bg-light-bg dark:bg-dark-bg  p-8 transition-colors duration-300">
+    <div className="min-h-dvh bg-light-bg dark:bg-dark-bg p-8 transition-colors duration-300">
       <div className="flex flex-col items-center fixed top-5 right-5 z-50">
         <UserProfile
           userName={user?.name}
@@ -209,68 +269,145 @@ export default function DocumentManager() {
         />
       </div>
       <div className="max-w-6xl mx-auto">
-        <div className=" p-8 transition-colors duration-300">
+        <div className="p-8 transition-colors duration-300">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-3xl font-bold text-light-primary dark:text-dark-primary">
               Gestor de Documentos
             </h1>
             <button
               onClick={() => navigate("/users")}
-              className="flex items-center justify-center gap-2 px-6 py-3  text-light-primary dark:text-dark-primary rounded-xl border border-light-secondary dark:border-dark-secondary transition-all duration-200 hover:scale-105 active:scale-95"
+              className="flex items-center justify-center gap-2 px-6 py-3 text-light-primary dark:text-dark-primary rounded-xl border border-light-secondary dark:border-dark-secondary transition-all duration-200 hover:scale-105 active:scale-95"
             >
               <ArrowLeft />
               <span className="font-medium">Volver a usuarios</span>
             </button>
           </div>
-          {/* Upload Area */}
-          <div
-            className={`relative border-2 border-dashed rounded-xl p-12 mb-8 transition-all duration-300 ${
-              dragActive
-                ? "border-light-accent bg-light-bg_h dark:bg-dark-bg_h"
-                : "border-light-border dark:border-dark-border bg-light-bg dark:bg-dark-bg"
-            }`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <input
-              type="file"
-              id="file-upload"
-              multiple
-              onChange={handleChange}
-              className="hidden"
-              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx"
-            />
 
-            <label
-              htmlFor="file-upload"
-              className="flex flex-col items-center justify-center cursor-pointer"
+          {/* MENÚ DE REEMPLAZO EXCLUSIVO (Solo visible para la cuenta de desarrollo admin@datahuba.com) */}
+          {isDeveloper && (
+            <div className="mb-6 bg-white dark:bg-gray-900 border border-light-border dark:border-dark-border rounded-2xl p-5 shadow-sm transition-colors duration-200">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="replace-active-checkbox"
+                  checked={isReplaceActive}
+                  onChange={(e) => {
+                    setIsReplaceActive(e.target.checked);
+                    if (!e.target.checked) setReplaceId("");
+                  }}
+                  className="w-4 h-4 text-light-secondary dark:text-dark-secondary border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded focus:ring-light-secondary focus:ring-2 cursor-pointer"
+                />
+                <label
+                  htmlFor="replace-active-checkbox"
+                  className="text-sm font-semibold text-light-primary dark:text-dark-primary cursor-pointer select-none"
+                >
+                  ¿Deseas reemplazar una normativa existente? (Eliminará versiones previas de Qdrant)
+                </label>
+              </div>
+
+              {isReplaceActive && (
+                <div className="mt-4 space-y-2 animate-in slide-in-from-top-1 duration-200">
+                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400">
+                    Seleccione la normativa activa de "La Gabi" que desea sustituir por el nuevo archivo:
+                  </label>
+                  <select
+                    value={replaceId}
+                    onChange={(e) => setReplaceId(e.target.value)}
+                    required={isReplaceActive}
+                    className="block w-full max-w-md px-4 py-3 border border-light-border dark:border-dark-border/20 bg-light-bg dark:bg-dark-bg rounded-xl text-sm text-light-primary dark:text-dark-primary focus:outline-none focus:ring-2 focus:ring-light-secondary transition-colors"
+                  >
+                    <option value="">-- Seleccionar documento --</option>
+                    {documents.map((d) => (
+                      <option key={d._id} value={d._id}>
+                        {d.originalName} ({formatSize(d.size)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* BARRA DE PROGRESO DE INGESTA VECTORES (Doble capa de retroalimentación en tiempo real) */}
+          {uploading && (
+            <div className="mb-8 p-6 bg-white dark:bg-gray-900 border border-light-border dark:border-dark-border rounded-2xl shadow-lg transition-all">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-sm font-semibold text-light-secondary dark:text-dark-secondary animate-pulse flex items-center gap-2">
+                  <Autorenew className="animate-spin text-sm" />
+                  {uploadStatus}
+                </span>
+                <span className="text-xs font-bold text-gray-500">{Math.round(uploadProgress)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-800 h-2.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-light-secondary dark:bg-dark-secondary h-full rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+
+          {/* Upload Area (Editable únicamente para el desarrollador, banner informativo para otros roles) */}
+          {isDeveloper ? (
+            <div
+              className={`relative border-2 border-dashed rounded-xl p-12 mb-8 transition-all duration-300 ${
+                dragActive
+                  ? "border-light-accent bg-light-bg_h dark:bg-dark-bg_h"
+                  : "border-light-border dark:border-dark-border bg-light-bg dark:bg-dark-bg"
+              }`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
             >
-              <UploadFile
-                className={`w-16 h-16 mb-4 ${
-                  dragActive
-                    ? "text-light-accent"
-                    : "text-light-secondary dark:text-dark-secondary"
-                }`}
+              <input
+                type="file"
+                id="file-upload"
+                multiple
+                onChange={handleChange}
+                className="hidden"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx"
               />
-              <p className="text-xl font-semibold text-light-primary dark:text-dark-primary mb-2">
-                {uploading
-                  ? "Subiendo archivos..."
-                  : "Arrastra archivos aquí o haz clic para seleccionar"}
-              </p>
-              <p className="text-sm text-light-primary_h dark:text-dark-primary_h">
-                PDF, Imágenes, Excel, Word, CSV, PowerPoint (Máx. 100MB)
-              </p>
-            </label>
-          </div>
+
+              <label
+                htmlFor="file-upload"
+                className="flex flex-col items-center justify-center cursor-pointer"
+              >
+                <UploadFile
+                  className={`w-16 h-16 mb-4 ${
+                    dragActive
+                      ? "text-light-accent"
+                      : "text-light-secondary dark:text-dark-secondary"
+                  }`}
+                />
+                <p className="text-xl font-semibold text-light-primary dark:text-dark-primary mb-2">
+                  {uploading
+                    ? "Iniciando ingesta vectorial..."
+                    : "Arrastra archivos aquí o haz clic para seleccionar"}
+                </p>
+                <p className="text-sm text-light-primary_h dark:text-dark-primary_h">
+                  PDF, Imágenes, Excel, Word, CSV, PowerPoint (Máx. 100MB)
+                </p>
+              </label>
+            </div>
+          ) : (
+            <div className="mb-8 p-6 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded-2xl flex items-start gap-4">
+              <UploadFile className="text-blue-500 flex-shrink-0 w-6 h-6" />
+              <div>
+                <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300">Canal de Consulta de Base de Conocimiento</h3>
+                <p className="text-xs text-blue-700 dark:text-blue-400/80 mt-1 leading-relaxed">
+                  Usted dispone de permisos de consulta para el catálogo de normativas activas en "La Gabi". La carga, reemplazo o depuración física de los índices vectoriales de Qdrant está reservada exclusivamente para el perfil del desarrollador (`admin@datahuba.com`).
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Documents Table */}
           {isLoading || documents.length > 0 ? (
             <div>
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold text-light-primary dark:text-dark-primary">
-                  Documentos ({documents.length})
+                  Catálogo de Normativas Vigentes ({documents.length})
                 </h2>
               </div>
 
@@ -343,13 +480,17 @@ export default function DocumentManager() {
                                   <CloudDownload className="w-5 h-5" />
                                 </a>
                               )}
-                              <button
-                                onClick={() => confirmDelete(doc)}
-                                className="p-2 text-light-danger hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                title="Eliminar documento"
-                              >
-                                <Delete className="w-5 h-5" />
-                              </button>
+                              
+                              {/* El botón de borrar solo es funcional y visible para el desarrollador */}
+                              {isDeveloper && (
+                                <button
+                                  onClick={() => confirmDelete(doc)}
+                                  className="p-2 text-light-danger hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                  title="Eliminar documento"
+                                >
+                                  <Delete className="w-5 h-5" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -366,7 +507,7 @@ export default function DocumentManager() {
                 No hay documentos subidos aún
               </p>
               <p className="text-light-primary_h dark:text-dark-primary_h text-sm mt-2">
-                Sube tus primeros documentos usando el área de arriba
+                Use la zona de arriba bajo el perfil de desarrollo para indexar normativas
               </p>
             </div>
           )}
@@ -378,7 +519,7 @@ export default function DocumentManager() {
         onClose={() => setDeleteModalOpen(false)}
         onConfirm={handleDelete}
         title="Eliminar documento"
-        message={`¿Estás seguro de que quieres eliminar el documento "${docToDelete?.originalName}"? Esta acción no se puede deshacer.`}
+        message={`¿Estás seguro de que quieres eliminar el documento "${docToDelete?.originalName}"? Esta acción purgará los vectores correspondientes en Qdrant de forma irreversible.`}
         confirmText="Eliminar"
         cancelText="Cancelar"
         variant="danger"
