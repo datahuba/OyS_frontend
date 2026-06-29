@@ -47,11 +47,11 @@ export default function DocumentManager() {
   // Validación rápida de identidad de desarrollo
   const isDeveloper = user?.email === "admin@datahuba.com";
 
-  // CORREGIDO: Llamada al endpoint explícito con prefijo '/api' para recuperar normativas de la base de datos
+  // CORREGIDO: Llamada al endpoint utilizando ruta relativa. Axios antepondrá automáticamente '/api'
   const fetchDocuments = useCallback(async () => {
     try {
       setIsLoading(true);
-      const { data } = await apiClient.get("/api/documents");
+      const { data } = await apiClient.get("/documents");
       setDocuments(data);
     } catch (error) {
       console.error("Error fetching documents:", error);
@@ -178,8 +178,8 @@ export default function DocumentManager() {
         signal: abortControllerRef.current.signal // Inyección del token de cancelación
       };
 
-      // CORREGIDO: Endpoint con prefijo '/api' explícito
-      await apiClient.post("/api/documents/upload", formData, config);
+      // CORREGIDO: Ruta relativa. Axios antepondrá '/api' de forma automática
+      await apiClient.post("/documents/upload", formData, config);
       
       clearInterval(progressTimer);
       setUploadProgress(100);
@@ -249,8 +249,8 @@ export default function DocumentManager() {
 
     try {
       setDeleting(true);
-      // CORREGIDO: Ruta con prefijo '/api' explícito para el DELETE de normativas
-      await apiClient.delete(`/api/documents/${docToDelete._id}`);
+      // CORREGIDO: Ruta con prefijo '/api' implícito manejado por Axios
+      await apiClient.delete(`/documents/${docToDelete._id}`);
       alert("success", "Documento y vectores asociados eliminados correctamente de Qdrant.");
       setDocuments((prev) => prev.filter((d) => d._id !== docToDelete._id));
     } catch (error) {
@@ -380,7 +380,7 @@ export default function DocumentManager() {
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-800 h-2.5 rounded-full overflow-hidden mb-4">
                 <div
-                  className="bg-light-secondary dark:bg-dark-secondary h-full rounded-full transition-all duration-300"
+                  className="bg-light-secondary h-full rounded-full transition-all duration-300"
                   style={{ width: `${uploadProgress}%` }}
                 ></div>
               </div>
@@ -494,22 +494,22 @@ export default function DocumentManager() {
                 <table className="w-full">
                   <thead className="bg-light-bg_h dark:bg-dark-bg_h">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-light-primary_h dark:text-dark-primary_h uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-medium text-light-primary_h dark:text-dark-primary_h uppercase tracking-wider">
                         Archivo
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-light-primary_h dark:text-dark-primary_h uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-medium text-light-primary_h dark:text-dark-primary_h uppercase tracking-wider">
                         Nombre
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-light-primary_h dark:text-dark-primary_h uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-medium text-light-primary_h dark:text-dark-primary_h uppercase tracking-wider">
                         Tamaño
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-light-primary_h dark:text-dark-primary_h uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-medium text-light-primary_h dark:text-dark-primary_h uppercase tracking-wider">
                         Subido por
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-light-primary_h dark:text-dark-primary_h uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-medium text-light-primary_h dark:text-dark-primary_h uppercase tracking-wider">
                         Fecha
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-light-primary_h dark:text-dark-primary_h uppercase tracking-wider">
+                      <th className="px-6 py-4 text-right text-xs font-medium text-light-primary_h dark:text-dark-primary_h uppercase tracking-wider">
                         Acciones
                       </th>
                     </tr>
@@ -521,7 +521,7 @@ export default function DocumentManager() {
                       documents.map((doc) => (
                         <tr
                           key={doc._id}
-                          className="hover:bg-light-bg_h dark:hover:bg-dark-bg_h transition-colors"
+                          className="hover:bg-light-bg_h dark:hover:bg-gray-700/50 transition-colors"
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
                             {getFileIcon(doc.originalName)}
@@ -546,8 +546,8 @@ export default function DocumentManager() {
                               {new Date(doc.createdAt).toLocaleDateString()}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex space-x-2">
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="flex space-x-2 justify-end">
                               {doc.cloudinaryUrl && (
                                 <a
                                   href={doc.cloudinaryUrl}
