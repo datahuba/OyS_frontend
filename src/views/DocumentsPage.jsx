@@ -346,7 +346,7 @@ export default function DocumentManager() {
             </p>
           </div>
 
-          {/* BUSCADOR DE REEMPLAZO INTELIGENTE (AUTOCOMPLETE - Exclusivo para el perfil admin@datahuba.com) */}
+          {/* MENÚ DE REEMPLAZO EXCLUSIVO (Solo visible para el perfil de desarrollo admin@datahuba.com) */}
           {isDeveloper && (
             <div className="mb-6 bg-white dark:bg-gray-900 border border-light-border dark:border-dark-border rounded-2xl p-5 shadow-sm transition-colors duration-200">
               <div className="flex items-center gap-3">
@@ -388,7 +388,7 @@ export default function DocumentManager() {
                           setReplaceId("");
                         }
                       }}
-                      onFocus={() => setIsOpen(true)}
+                      onFocus={() => setDropdownOpen(true)}
                       className="block w-full px-4 py-3 border border-light-border dark:border-dark-border/20 bg-light-bg dark:bg-dark-bg rounded-xl text-sm text-light-primary dark:text-dark-primary focus:outline-none focus:ring-2 focus:ring-light-secondary transition-colors"
                       placeholder="Escribe el nombre de la normativa... (Ej. RESOA, Estatuto)"
                     />
