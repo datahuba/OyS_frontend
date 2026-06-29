@@ -47,7 +47,7 @@ export default function DocumentManager() {
   // Validación rápida de identidad de desarrollo
   const isDeveloper = user?.email === "admin@datahuba.com";
 
-  // CORREGIDO: Llamada al endpoint utilizando ruta relativa. Axios antepondrá automáticamente '/api'
+  // CORREGIDO: Llamada al enrutador de Axios utilizando la ruta relativa nominal
   const fetchDocuments = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -55,7 +55,7 @@ export default function DocumentManager() {
       setDocuments(data);
     } catch (error) {
       console.error("Error fetching documents:", error);
-      alert("error", "Error al cargar la lista de documentos.");
+      alert("error", "Error al cargar la lista unificada de documentos.");
     } finally {
       setIsLoading(false);
     }
@@ -178,7 +178,7 @@ export default function DocumentManager() {
         signal: abortControllerRef.current.signal // Inyección del token de cancelación
       };
 
-      // CORREGIDO: Ruta relativa. Axios antepondrá '/api' de forma automática
+      // CORREGIDO: Ruta relativa nominal administrada de forma nativa por Axios
       await apiClient.post("/documents/upload", formData, config);
       
       clearInterval(progressTimer);
@@ -249,7 +249,7 @@ export default function DocumentManager() {
 
     try {
       setDeleting(true);
-      // CORREGIDO: Ruta con prefijo '/api' implícito manejado por Axios
+      // CORREGIDO: Ruta con prefijo '/api' implícito manejado por Axios de forma segura
       await apiClient.delete(`/documents/${docToDelete._id}`);
       alert("success", "Documento y vectores asociados eliminados correctamente de Qdrant.");
       setDocuments((prev) => prev.filter((d) => d._id !== docToDelete._id));
@@ -359,7 +359,7 @@ export default function DocumentManager() {
                     <option value="">-- Seleccionar documento --</option>
                     {documents.map((d) => (
                       <option key={d._id} value={d._id}>
-                        {d.originalName} ({formatSize(d.size)})
+                        {d.isStatic ? `(Sistema) ${d.originalName}` : d.originalName} {d.size > 0 ? `(${formatSize(d.size)})` : ""}
                       </option>
                     ))}
                   </select>
@@ -462,7 +462,9 @@ export default function DocumentManager() {
                   }`}
                 />
                 <p className="text-xl font-semibold text-light-primary dark:text-dark-primary mb-2">
-                  Arrastra archivos aquí o haz clic para seleccionar
+                  {uploading
+                    ? "Iniciando ingesta vectorial..."
+                    : "Arrastra archivos aquí o haz clic para seleccionar"}
                 </p>
                 <p className="text-sm text-light-primary_h dark:text-dark-primary_h">
                   PDF, Imágenes, Excel, Word, CSV, PowerPoint (Máx. 100MB)
@@ -470,7 +472,7 @@ export default function DocumentManager() {
               </label>
             </div>
           ) : (
-            <div className="mb-8 p-6 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:bg-blue-900/20 rounded-2xl flex items-start gap-4">
+            <div className="mb-8 p-6 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded-2xl flex items-start gap-4">
               <UploadFile className="text-blue-500 flex-shrink-0 w-6 h-6" />
               <div>
                 <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300">Canal de Consulta de Base de Conocimiento</h3>
@@ -528,7 +530,7 @@ export default function DocumentManager() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm font-medium text-light-primary dark:text-dark-primary break-all">
-                              {doc.originalName}
+                              {doc.isStatic ? `[Sistema] ${doc.originalName}` : doc.originalName}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
