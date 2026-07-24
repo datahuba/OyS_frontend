@@ -1,39 +1,72 @@
+# ============================================================
+# .github/workflows/deploy.yml (FRONTEND)
+# ============================================================
+# Deploy automático del frontend a producción (VPS Datahuba) cuando se
+# pushea a develop_kevin.
+#
+# Usa el script /usr/local/bin/deploy-oys.sh que ya está en el VPS y hace:
+#   - git pull (OyS + OyS_frontend)
+#   - docker compose pull
+#   - docker compose up -d
+#   - test de salud
+#
+# IMPORTANTE: después del hardening del 2026-07-20, el VPS tiene:
+#   - Puerto SSH: 2222 (no 22)
+#   - Login: solo clave ed25519 (sin password)
+#   - Usuario: deploy (no root), con sudo NOPASSWD
+#
+# Secrets requeridos en GitHub (Settings > Secrets and variables > Actions):
+#   - VPS_SSH_HOST     = 84.247.181.176
+#   - VPS_SSH_USER     = deploy
+#   - VPS_SSH_KEY      = contenido de la clave PRIVADA ed25519 del usuario deploy
+#                        (NO la pública; NO la passphrase)
+#                        Para obtenerla: en el VPS, sudo cat /home/deploy/.ssh/id_ed25519
+# ============================================================
+
 name: Deploy Frontend to VPS
 
 on:
   push:
     branches:
-      - develop_kevin # Se activa únicamente cuando subes cambios a esta rama
+      - develop_kevin
+    paths:
+      - '**'  # Cualquier cambio (el repo en GitHub es solo el frontend)
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
+    name: Deploy to VPS via SSH
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # NOTA: No usamos `needs: build` porque este repo no tiene CI workflow
+    # de tests. El frontend se valida manualmente / por E2E del backend.
 
     steps:
-      - name: Checkout del código
-        uses: actions/checkout@v4
-
-      - name: Desplegar en VPS vía SSH
+      - name: Deploy vía SSH (ejecuta script del VPS)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          password: ${{ secrets.SSH_PASSWORD }} 
-          port: 22
-          # Incrementar el timeout de conexión a 30 minutos para prevenir cortes en servidores bajo carga
-          timeout: 30m
+          host: ${{ secrets.VPS_SSH_HOST }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 2222
+          # Si en el futuro agregás passphrase a la clave
+          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE || '' }}
+          command_timeout: 10m
           script: |
-            echo "Conectado al VPS. Iniciando despliegue de OyS_frontend..."
-            cd /root/oys-deploy/OyS_frontend
-            
-            # Limpiar cualquier cambio local temporal que impida el pull
-            git reset --hard HEAD
-            
-            # Descargar los cambios de GitHub al VPS
-            git pull origin develop_kevin
-            
-            # Navegar a la raíz del orquestador y reconstruir el contenedor
-            cd /root/oys-deploy
-            docker compose up -d --build oys-frontend
-            
-            echo "Despliegue de OyS_frontend completado de forma exitosa."
+            set -e
+            echo "============================================"
+            echo "Deploy OyS Frontend — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "============================================"
+
+            # El script de deploy del VPS ya hace TODO:
+            #   git pull (OyS + OyS_frontend) + docker compose pull
+            #   + up -d + health check
+            # Vive en /usr/local/bin/deploy-oys.sh y tiene sudo NOPASSWD.
+            sudo /usr/local/bin/deploy-oys.sh
+
+            echo ""
+            echo "============================================"
+            echo "Deploy frontend completado"
+            echo "============================================"
