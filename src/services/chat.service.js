@@ -44,13 +44,22 @@ class ChatService {
 
   /**
    * Obtiene el historial de chats por nombre de contexto.
+   *
+   * IMPORTANTE: el backend (a partir de la paginación de F-075) devuelve
+   *   { data: [...chats], pagination: { page, limit, total, pages, hasNext, hasPrev } }
+   * Acá extraemos solo `data` para que el frontend siga trabajando con un array
+   * plano (todos los call sites asumen array). Si en el futuro el frontend
+   * quiere usar paginación visible, agregar un método nuevo que retorne el
+   * response completo (ej: `getHistorialChatsByContextPaged`).
+   *
    * @param {string} contextName - Nombre del contexto a buscar.
    * @returns {Promise<array>} - Historial de chats recuperados.
    */
   async getHistorialChatsByContext(contextName) {
     try {
       const response = await apiClient.get(`/chats/context/${contextName}`);
-      return response.data;
+      // Unwrap de la paginación: retornar solo el array de chats
+      return response.data?.data ?? response.data ?? [];
     } catch (error) {
       console.error("❌ Error al obtener historial de chats en ChatService:", error);
       throw (
